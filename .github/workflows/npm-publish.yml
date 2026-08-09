@@ -1,177 +1,258 @@
-# TaskFlow Release — Build distributables
+# TaskFlow — Build & Release Pipeline
 #
-# Triggers:
-#   • push to main          → builds all three platform installers and uploads them
-#                             as GitHub Actions workflow artefacts (downloadable from
-#                             the Actions run summary for 7 days)
-#   • GitHub Release created → additionally attaches the installers as release assets
-#                              downloadable from the Releases page
+# HOW TO RELEASE
+# ══════════════
+# 1. Bump the version in package.json  (e.g. 0.1.0 → 0.2.0)
+# 2. Commit:  git add package.json && git commit -m "chore: release v0.2.0"
+# 3. Tag:     git tag v0.2.0
+# 4. Push:    git push origin main --tags
 #
-# Author: Aditya Pratap Bhuyan https://linkedin.com/in/adityabhuyan
+# That push triggers TWO workflows:
+#   • deno.yml  — runs typecheck + lint + build (CI gate)
+#   • this file — builds Win/Mac/Linux installers, then creates a GitHub
+#                 Release and attaches all installers as release assets.
+#
+# ON PLAIN push to main (no tag)
+# ══════════════════════════════
+# Only the three build jobs run.  Installers are uploaded as
+# GitHub Actions workflow artefacts (available for 7 days from the
+# Actions → run summary page).  No GitHub Release is created.
+#
+# Author: Aditya Pratap Bhuyan  https://linkedin.com/in/adityabhuyan
 
 name: Release
 
+# ── Triggers ───────────────────────────────────────────────────────────────────
 on:
   push:
-    branches: ["main"]
-  release:
-    types: [created]
+    branches: ["main"]          # every push → build artefacts
+    tags:     ["v*.*.*"]        # version tag  → build + publish release
 
 permissions:
-  contents: write
+  contents: write               # needed to create releases and upload assets
 
+# ── Shared env ─────────────────────────────────────────────────────────────────
+env:
+  NODE_VERSION: "20"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Job 1 — Windows (.exe NSIS installer)
+# ══════════════════════════════════════════════════════════════════════════════
 jobs:
-  # ────────────────────────────────────────────────────────────────────────────
-  # Windows
-  # ────────────────────────────────────────────────────────────────────────────
   build-windows:
-    name: Build Windows installer
+    name: 🪟 Build Windows installer
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Rebuild native modules
+      - name: Rebuild better-sqlite3 for Electron
         run: npx electron-rebuild -f -w better-sqlite3
 
-      - name: Build Windows installer
-        run: npm run dist:win
+      - name: Build Vite + electron-vite bundles
+        run: npm run build
 
-      # Always upload as a workflow artefact (available for 7 days on every run)
-      - name: Upload artefact (Windows)
+      - name: Package Windows installer (NSIS .exe)
+        # Pass --publish never so electron-builder never tries to auto-publish.
+        # Release attachment is handled by the publish job below.
+        run: npx electron-builder --win --config electron-builder.config.js --publish never
+
+      - name: Upload Windows installer as artefact
         uses: actions/upload-artifact@v4
         with:
-          name: TaskFlow-Windows
-          path: dist/TaskFlow*.exe
-          if-no-files-found: warn
+          name: installer-windows
+          # NSIS produces "TaskFlow Setup <version>.exe"
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 7
 
-      # Only attach to a GitHub Release when triggered by release:created
-      - name: Attach to GitHub Release (Windows)
-        if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/TaskFlow Setup*.exe
-          asset_name: TaskFlow-Setup-win.exe
-          asset_content_type: application/octet-stream
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # macOS
-  # ────────────────────────────────────────────────────────────────────────────
+  # ══════════════════════════════════════════════════════════════════════════════
+  # Job 2 — macOS (.dmg)
+  # ══════════════════════════════════════════════════════════════════════════════
   build-macos:
-    name: Build macOS DMG
+    name: 🍎 Build macOS DMG
     runs-on: macos-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Rebuild native modules
+      - name: Rebuild better-sqlite3 for Electron
         run: npx electron-rebuild -f -w better-sqlite3
 
-      - name: Build macOS DMG
-        run: npm run dist:mac
+      - name: Build Vite + electron-vite bundles
+        run: npm run build
 
-      - name: Upload artefact (macOS)
+      - name: Package macOS DMG
+        run: npx electron-builder --mac --config electron-builder.config.js --publish never
+
+      - name: Upload macOS DMG as artefact
         uses: actions/upload-artifact@v4
         with:
-          name: TaskFlow-macOS
-          path: dist/TaskFlow*.dmg
-          if-no-files-found: warn
+          name: installer-macos
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Attach to GitHub Release (macOS)
-        if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/TaskFlow*.dmg
-          asset_name: TaskFlow-mac.dmg
-          asset_content_type: application/octet-stream
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # Linux
-  # ────────────────────────────────────────────────────────────────────────────
+  # ══════════════════════════════════════════════════════════════════════════════
+  # Job 3 — Linux (.AppImage + .deb)
+  # ══════════════════════════════════════════════════════════════════════════════
   build-linux:
-    name: Build Linux AppImage
+    name: 🐧 Build Linux AppImage + deb
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Linux build dependencies
-        run: sudo apt-get install -y libsecret-1-dev libnotify-bin
+      - name: Install Linux native build dependencies
+        # libsecret: keychain integration  |  libnotify: system notifications
+        # fakeroot + dpkg: required by electron-builder's deb target
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libsecret-1-dev libnotify-bin fakeroot dpkg
 
-      - name: Rebuild native modules
+      - name: Rebuild better-sqlite3 for Electron
         run: npx electron-rebuild -f -w better-sqlite3
 
-      - name: Build Linux AppImage
-        run: npm run dist:linux
+      - name: Build Vite + electron-vite bundles
+        run: npm run build
 
-      - name: Upload artefact (Linux AppImage)
+      - name: Package Linux AppImage + deb
+        run: npx electron-builder --linux --config electron-builder.config.js --publish never
+
+      - name: Upload Linux AppImage as artefact
         uses: actions/upload-artifact@v4
         with:
-          name: TaskFlow-Linux-AppImage
-          path: dist/TaskFlow*.AppImage
-          if-no-files-found: warn
+          name: installer-linux-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Upload artefact (Linux deb)
+      - name: Upload Linux .deb as artefact
         uses: actions/upload-artifact@v4
         with:
-          name: TaskFlow-Linux-deb
-          path: dist/TaskFlow*.deb
-          if-no-files-found: warn
+          name: installer-linux-deb
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Attach AppImage to GitHub Release
-        if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
+  # ══════════════════════════════════════════════════════════════════════════════
+  # Job 4 — Publish GitHub Release   (runs ONLY on version tags v*.*.*)
+  # ══════════════════════════════════════════════════════════════════════════════
+  publish-release:
+    name: 🚀 Publish GitHub Release
+    runs-on: ubuntu-latest
+    # Only run when this is a version tag push, and all three builds succeeded
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-macos, build-linux]
+
+    steps:
+      - name: Checkout (for release notes from CHANGELOG / tag message)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # full history so we can diff tags
+
+      # ── Download all installer artefacts built by the three jobs above ───────
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-windows
+          path: release-assets/windows
+
+      - name: Download macOS DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-macos
+          path: release-assets/macos
+
+      - name: Download Linux AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-linux-appimage
+          path: release-assets/linux
+
+      - name: Download Linux .deb
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-linux-deb
+          path: release-assets/linux
+
+      # ── Show exactly what we are about to publish ────────────────────────────
+      - name: List release assets
+        run: find release-assets -type f | sort
+
+      # ── Create the GitHub Release and attach all installers ──────────────────
+      # softprops/action-gh-release is the modern replacement for the deprecated
+      # actions/create-release + upload-release-asset combination.
+      # It handles glob patterns, creates the release, and uploads all files.
+      - name: Create GitHub Release and upload installers
+        uses: softprops/action-gh-release@v2
+        with:
+          # Tag name is the git tag that triggered this workflow (e.g. v0.2.0)
+          tag_name: ${{ github.ref_name }}
+          name: "TaskFlow ${{ github.ref_name }}"
+          # draft: false  → immediately visible to users
+          # prerelease: false → mark as stable
+          draft: false
+          prerelease: false
+          # Auto-generate release notes from commit messages since last tag
+          generate_release_notes: true
+          # Attach every installer we downloaded
+          files: |
+            release-assets/windows/*.exe
+            release-assets/macos/*.dmg
+            release-assets/linux/*.AppImage
+            release-assets/linux/*.deb
+          # Body is prepended before the auto-generated notes
+          body: |
+            ## TaskFlow ${{ github.ref_name }}
+
+            ### Downloads
+
+            | Platform | File | Notes |
+            |---|---|---|
+            | 🪟 Windows | `TaskFlow-Setup-win.exe` | NSIS installer, 64-bit |
+            | 🍎 macOS | `TaskFlow-mac.dmg` | Universal DMG (x64 + Apple Silicon) |
+            | 🐧 Linux | `TaskFlow-linux.AppImage` | Portable, no install needed |
+            | 🐧 Linux | `TaskFlow-linux.deb` | Debian / Ubuntu package |
+
+            ### Installation
+
+            - **Windows:** run the `.exe` installer, follow the wizard
+            - **macOS:** open the `.dmg`, drag TaskFlow to Applications
+            - **Linux AppImage:** `chmod +x TaskFlow*.AppImage && ./TaskFlow*.AppImage`
+            - **Linux deb:** `sudo dpkg -i taskflow*.deb`
+
+            > First-time users: see [INSTALL.md](https://github.com/${{ github.repository }}/blob/main/INSTALL.md) for full setup instructions.
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/TaskFlow*.AppImage
-          asset_name: TaskFlow-linux.AppImage
-          asset_content_type: application/octet-stream
-
-      - name: Attach .deb to GitHub Release
-        if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/TaskFlow*.deb
-          asset_name: TaskFlow-linux.deb
-          asset_content_type: application/octet-stream
