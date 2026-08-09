@@ -5,10 +5,16 @@
 
 import type {
   Category,
+  Tag,
+  Subtask,
   Task,
   TaskWithDetails,
   TaskCompletion,
   Recurrence,
+  WeeklyStats,
+  HeatmapDay,
+  ExportRow,
+  CompletionExportRow,
 } from '@/types'
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
@@ -39,6 +45,7 @@ const SEED_TASKS: TaskWithDetails[] = [
     recurrence_id: 1,
     schedule_type: 'weekday',
     status: 'active',
+    sort_order: 0,
     created_at: todayStr,
     updated_at: todayStr,
     category: SEED_CATEGORIES[0],
@@ -55,6 +62,7 @@ const SEED_TASKS: TaskWithDetails[] = [
     recurrence_id: null,
     schedule_type: 'any',
     status: 'active',
+    sort_order: 1,
     created_at: todayStr,
     updated_at: todayStr,
     category: SEED_CATEGORIES[1],
@@ -70,6 +78,7 @@ const SEED_TASKS: TaskWithDetails[] = [
     recurrence_id: null,
     schedule_type: 'any',
     status: 'active',
+    sort_order: 2,
     created_at: todayStr,
     updated_at: todayStr,
     category: SEED_CATEGORIES[2],
@@ -81,9 +90,14 @@ const SEED_TASKS: TaskWithDetails[] = [
 let _categories: Category[] = [...SEED_CATEGORIES]
 let _tasks: TaskWithDetails[] = [...SEED_TASKS]
 let _completions: TaskCompletion[] = []
+let _subtasks: Subtask[] = []
+let _tags: Tag[] = []
+let _taskTags: { task_id: number; tag_id: number }[] = []
 let _nextTaskId = 100
 let _nextCatId = 20
 let _nextCompId = 1
+let _nextSubId = 1
+let _nextTagId = 1
 
 function delay<T>(val: T): Promise<T> {
   return new Promise((r) => setTimeout(() => r(val), 50))
@@ -96,6 +110,30 @@ function withCategory(task: Task): TaskWithDetails {
     completion_today: _completions.find(
       (c) => c.task_id === task.id && c.occurrence_date === todayStr
     ),
+    tags: _taskTags.filter(tt => tt.task_id === task.id).map(tt => _tags.find(t => t.id === tt.tag_id)!).filter(Boolean),
+    subtasks: _subtasks.filter(s => s.task_id === task.id).sort((a, b) => a.sort_order - b.sort_order),
+  }
+}
+
+// ─── Mock analytics helpers ───────────────────────────────────────────────────
+
+function mockWeeklyStats(): WeeklyStats {
+  const now = new Date()
+  const day = now.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const monday = new Date(now); monday.setDate(monday.getDate() + diff)
+  const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6)
+  const week_start = monday.toISOString().slice(0, 10)
+  const week_end = sunday.toISOString().slice(0, 10)
+  const weekComps = _completions.filter(c => c.occurrence_date >= week_start && c.occurrence_date <= week_end)
+  const completed = weekComps.filter(c => c.status === 'completed').length
+  const skipped   = weekComps.filter(c => c.status === 'skipped').length
+  const deferred  = weekComps.filter(c => c.status === 'deferred').length
+  const total_scheduled = completed + skipped + deferred
+  return {
+    week_start, week_end, total_scheduled, completed, skipped, deferred,
+    completion_rate: total_scheduled > 0 ? Math.round((completed / total_scheduled) * 100) : 0,
+    by_category: [], by_priority: [], top_streaks: [],
   }
 }
 
@@ -174,6 +212,10 @@ export const mockTaskApi = {
       if (t) { t.status = 'archived'; t.updated_at = todayStr }
       return delay(true)
     },
+    reorder: async (ids: number[]) => {
+      ids.forEach((id, i) => { const t = _tasks.find(t => t.id === id); if (t) t.sort_order = i })
+      return delay(undefined)
+    },
   },
 
   categories: {
@@ -230,11 +272,92 @@ export const mockTaskApi = {
     },
   },
 
+  subtasks: {
+    getForTask: async (task_id: number) => delay(_subtasks.filter(s => s.task_id === task_id).sort((a, b) => a.sort_order - b.sort_order)),
+    create: async (task_id: number, title: string) => {
+      const s: Subtask = { id: _nextSubId++, task_id, title, completed: false, sort_order: _subtasks.filter(s => s.task_id === task_id).length, created_at: todayStr }
+      _subtasks.push(s); return delay(s)
+    },
+    update: async (id: number, data: { title?: string; completed?: boolean }) => {
+      const s = _subtasks.find(s => s.id === id)
+      if (!s) return delay(undefined)
+      if (data.title !== undefined) s.title = data.title
+      if (data.completed !== undefined) s.completed = data.completed
+      return delay(s)
+    },
+    delete: async (id: number) => { _subtasks = _subtasks.filter(s => s.id !== id); return delay(true) },
+    reorder: async (task_id: number, ids: number[]) => {
+      ids.forEach((id, i) => { const s = _subtasks.find(s => s.id === id && s.task_id === task_id); if (s) s.sort_order = i })
+      return delay(undefined)
+    },
+  },
+
+  tags: {
+    getAll: async () => delay([..._tags]),
+    create: async (name: string, color = '#6366f1') => {
+      const existing = _tags.find(t => t.name.toLowerCase() === name.toLowerCase())
+      if (existing) return delay(existing)
+      const tag: Tag = { id: _nextTagId++, name: name.trim(), color }
+      _tags.push(tag); return delay(tag)
+    },
+    update: async (id: number, data: { name?: string; color?: string }) => {
+      const t = _tags.find(t => t.id === id)
+      if (!t) return delay(undefined)
+      if (data.name) t.name = data.name
+      if (data.color) t.color = data.color
+      return delay(t)
+    },
+    delete: async (id: number) => { _tags = _tags.filter(t => t.id !== id); _taskTags = _taskTags.filter(tt => tt.tag_id !== id); return delay(true) },
+    setTaskTags: async (task_id: number, tag_ids: number[]) => {
+      _taskTags = _taskTags.filter(tt => tt.task_id !== task_id)
+      tag_ids.forEach(tag_id => _taskTags.push({ task_id, tag_id }))
+      return delay(undefined)
+    },
+    getForTask: async (task_id: number) => delay(_taskTags.filter(tt => tt.task_id === task_id).map(tt => _tags.find(t => t.id === tt.tag_id)!).filter(Boolean)),
+  },
+
+  analytics: {
+    getWeeklyStats: async (_weekOffset?: number) => delay(mockWeeklyStats()),
+    getHeatmapData: async (days = 365): Promise<HeatmapDay[]> => {
+      const end = new Date(); const start = new Date(); start.setDate(start.getDate() - days + 1)
+      const startStr = start.toISOString().slice(0, 10); const endStr = end.toISOString().slice(0, 10)
+      const comps = _completions.filter(c => c.occurrence_date >= startStr && c.occurrence_date <= endStr)
+      const map = new Map<string, HeatmapDay>()
+      for (const c of comps) {
+        if (!map.has(c.occurrence_date)) map.set(c.occurrence_date, { date: c.occurrence_date, completed: 0, skipped: 0, deferred: 0, total: 0 })
+        const d = map.get(c.occurrence_date)!
+        if (c.status === 'completed') d.completed++
+        else if (c.status === 'skipped') d.skipped++
+        else if (c.status === 'deferred') d.deferred++
+        d.total++
+      }
+      return delay([...map.values()])
+    },
+    exportTasks: async (): Promise<ExportRow[]> => delay(_tasks.map(t => ({
+      task_id: t.id, title: t.title, description: t.description,
+      category: t.category?.name ?? 'Uncategorized', priority: t.priority,
+      due_date: t.due_date, recurrence_type: t.recurrence?.type ?? null,
+      status: t.status, tags: (t.tags ?? []).map(tg => tg.name).join(', '), created_at: t.created_at,
+    }))),
+    exportCompletions: async (): Promise<CompletionExportRow[]> => delay(_completions.map(c => {
+      const task = _tasks.find(t => t.id === c.task_id)
+      return { task_id: c.task_id, task_title: task?.title ?? '', occurrence_date: c.occurrence_date, status: c.status, deferred_to: c.deferred_to, completed_at: c.completed_at, notes: c.notes }
+    })),
+  },
+
   app: {
     getVersion: async () => delay('0.1.0 (browser)'),
     openDataFolder: async () => delay(undefined),
     updateTrayCount: async (_count: number) => delay(undefined),
     snoozeTask: async (_taskId: number, _minutes: number) => delay(true),
+    saveExportFile: async (filename: string, content: string) => {
+      // In browser mode: trigger a download instead
+      const blob = new Blob([content], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+      URL.revokeObjectURL(url)
+      return delay(filename)
+    },
   },
 
   calendar: {

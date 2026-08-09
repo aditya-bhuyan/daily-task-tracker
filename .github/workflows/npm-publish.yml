@@ -1,33 +1,93 @@
-# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
-# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
+﻿# TaskFlow Release — Build distributables on GitHub Release
+#
+# Triggered when a GitHub Release is published.
+# Builds installers for Windows, macOS, and Linux.
+#
+# Author: Aditya Pratap Bhuyan https://linkedin.com/in/adityabhuyan
 
-name: Node.js Package
+name: Release
 
 on:
   release:
     types: [created]
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - run: npm test
+permissions:
+  contents: write
 
-  publish-npm:
-    needs: build
+jobs:
+  build-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Rebuild native modules
+        run: npx electron-rebuild -f -w better-sqlite3
+      - name: Build Windows installer
+        run: npm run dist:win
+      - name: Upload artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dist/TaskFlow Setup*.exe
+          asset_name: TaskFlow-Setup-win.exe
+          asset_content_type: application/octet-stream
+
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Rebuild native modules
+        run: npx electron-rebuild -f -w better-sqlite3
+      - name: Build macOS DMG
+        run: npm run dist:mac
+      - name: Upload artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dist/TaskFlow*.dmg
+          asset_name: TaskFlow-mac.dmg
+          asset_content_type: application/octet-stream
+
+  build-linux:
+    name: Build Linux AppImage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org/
-      - run: npm ci
-      - run: npm publish
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Linux build deps
+        run: sudo apt-get install -y libsecret-1-dev libnotify-bin
+      - name: Rebuild native modules
+        run: npx electron-rebuild -f -w better-sqlite3
+      - name: Build Linux AppImage
+        run: npm run dist:linux
+      - name: Upload artifact
+        uses: actions/upload-release-asset@v1
         env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dist/TaskFlow*.AppImage
+          asset_name: TaskFlow-linux.AppImage
+          asset_content_type: application/octet-stream

@@ -1,7 +1,6 @@
 import { Tray, Menu, BrowserWindow, nativeImage, app } from 'electron'
 
 let tray: Tray | null = null
-let _incompleteCount = 0
 
 // ────────────────────────────────────────────────────────────────────────────
 // Minimal 16x16 blue square as a PNG data URL

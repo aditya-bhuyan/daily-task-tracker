@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, globalShortcut } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase } from './db/database'
@@ -71,6 +71,19 @@ app.whenReady().then(() => {
     startNotificationScheduler(mainWindow)
   }
 
+  // Feature 8: Global hotkey — Ctrl+Shift+Space opens quick-add window
+  globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    if (!mainWindow) return
+    if (!mainWindow.isVisible()) {
+      mainWindow.show()
+      mainWindow.focus()
+    } else if (!mainWindow.isFocused()) {
+      mainWindow.focus()
+    }
+    // Signal the renderer to open the quick-add task modal
+    mainWindow.webContents.send('quick-add-task')
+  })
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
@@ -82,6 +95,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   forceQuit = true
+  globalShortcut.unregisterAll()
   stopScheduler()
   destroyTray()
 })

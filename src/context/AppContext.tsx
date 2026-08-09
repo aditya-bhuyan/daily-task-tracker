@@ -15,6 +15,9 @@ export type SelectedView =
   | 'today'
   | 'all'
   | 'calendar'
+  | 'weekly'
+  | 'heatmap'
+  | 'export'
   | { type: 'category'; id: number }
 
 interface AppState {

@@ -29,6 +29,7 @@ export interface Task {
   recurrence_id: number | null
   schedule_type: 'any' | 'weekday' | 'weekend'
   status: 'active' | 'archived'
+  sort_order: number
   created_at: string
   updated_at: string
 }

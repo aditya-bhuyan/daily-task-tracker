@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { TagPicker } from '@/components/TagPicker'
 import { useApp } from '@/context/AppContext'
-import type { TaskWithDetails } from '@/types'
+import type { Tag, TaskWithDetails } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -157,6 +158,7 @@ export function TaskForm({ initialData, onSave, onCancel }: TaskFormProps) {
   const { categories } = useApp()
   const isEdit = !!initialData
   const [form, setForm] = useState<TaskFormData>(() => buildInitialData(initialData))
+  const [selectedTags, setSelectedTags] = useState<Tag[]>(() => initialData?.tags ?? [])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -226,6 +228,11 @@ export function TaskForm({ initialData, onSave, onCancel }: TaskFormProps) {
         result = (await window.taskApi.tasks.update(initialData.id, payload))!
       } else {
         result = await window.taskApi.tasks.create(payload)
+      }
+      // Persist tags (after task exists so we have its ID)
+      if (selectedTags.length > 0 || (initialData?.tags?.length ?? 0) > 0) {
+        await window.taskApi.tags.setTaskTags(result.id, selectedTags.map(t => t.id)).catch(() => {})
+        result = { ...result, tags: selectedTags }
       }
       onSave(result)
     } catch (err) {
@@ -323,6 +330,16 @@ export function TaskForm({ initialData, onSave, onCancel }: TaskFormProps) {
             </Select>
           </div>
         )}
+
+        {/* Tags — Feature 4 */}
+        <div className="flex flex-col gap-1.5">
+          <Label>Tags</Label>
+          <TagPicker
+            taskId={initialData?.id ?? 0}
+            value={selectedTags}
+            onChange={setSelectedTags}
+          />
+        </div>
       </section>
 
       <Separator />

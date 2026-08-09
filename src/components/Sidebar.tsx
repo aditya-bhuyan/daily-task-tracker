@@ -128,6 +128,24 @@ export function Sidebar() {
           active={isActive('calendar')}
           onClick={() => setView('calendar')}
         />
+        <NavItem
+          icon="📊"
+          label="Weekly Review"
+          active={isActive('weekly')}
+          onClick={() => setView('weekly')}
+        />
+        <NavItem
+          icon="🟩"
+          label="Heatmap"
+          active={isActive('heatmap')}
+          onClick={() => setView('heatmap')}
+        />
+        <NavItem
+          icon="⬇"
+          label="Export Data"
+          active={isActive('export')}
+          onClick={() => setView('export')}
+        />
       </nav>
 
       <Separator />

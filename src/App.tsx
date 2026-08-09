@@ -6,6 +6,9 @@ import { TodayView } from '@/pages/TodayView'
 import { AllTasksView } from '@/pages/AllTasksView'
 import { CategoryView } from '@/pages/CategoryView'
 import { CalendarView } from '@/pages/CalendarView'
+import { WeeklyReviewView } from '@/pages/WeeklyReviewView'
+import { HeatmapView } from '@/pages/HeatmapView'
+import { ExportView } from '@/pages/ExportView'
 import {
   requestNotificationPermission,
   startBrowserScheduler,
@@ -49,6 +52,16 @@ function AppShell() {
     return () => stopBrowserScheduler()
   }, [])
 
+  // Feature 8: Listen for global hotkey 'quick-add-task' from main process
+  useEffect(() => {
+    if (!IS_ELECTRON) return
+    const bridge = (window as unknown as { electronBridge?: { on: (ch: string, cb: () => void) => void; off: (ch: string, cb: () => void) => void } }).electronBridge
+    if (!bridge) return
+    const handler = () => { setEditingTask(undefined); setModalOpen(true) }
+    bridge.on('quick-add-task', handler)
+    return () => bridge.off('quick-add-task', handler)
+  }, [])
+
   function handleAddTask() {
     setEditingTask(undefined)
     setModalOpen(true)
@@ -66,9 +79,12 @@ function AppShell() {
   }
 
   function renderView() {
-    if (selectedView === 'today') return <TodayView />
-    if (selectedView === 'all') return <AllTasksView />
+    if (selectedView === 'today')    return <TodayView />
+    if (selectedView === 'all')      return <AllTasksView />
     if (selectedView === 'calendar') return <CalendarView />
+    if (selectedView === 'weekly')   return <WeeklyReviewView />
+    if (selectedView === 'heatmap')  return <HeatmapView />
+    if (selectedView === 'export')   return <ExportView />
     if (typeof selectedView === 'object' && selectedView.type === 'category') {
       return <CategoryView categoryId={selectedView.id} />
     }

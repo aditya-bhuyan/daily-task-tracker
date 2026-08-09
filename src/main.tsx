@@ -8,7 +8,8 @@ import { mockTaskApi } from './lib/mockApi'
 // full UI is functional. window.taskApi is injected by preload.ts in Electron
 // and takes precedence — this only runs when it is absent.
 if (typeof window !== 'undefined' && !window.taskApi) {
-  // @ts-ignore — intentional polyfill for browser mode
+  // @ts-expect-error — intentional polyfill for browser mode; window.taskApi is
+  // declared as required in api.d.ts but is absent before Electron's preload runs.
   window.taskApi = mockTaskApi
 }
 

@@ -1,12 +1,9 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+﻿# TaskFlow CI
+# Runs type-check, lint, and production build on every push and pull request.
+#
+# Author: Aditya Pratap Bhuyan https://linkedin.com/in/adityabhuyan
 
-# This workflow will install Deno then run `deno lint` and `deno test`.
-# For more information see: https://github.com/denoland/setup-deno
-
-name: Deno
+name: CI
 
 on:
   push:
@@ -18,25 +15,29 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  ci:
+    name: Type-check, Lint & Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Deno
-        # uses: denoland/setup-deno@v1
-        uses: denoland/setup-deno@61fe2df320078202e33d7d5ad347e7dcfa0e8f31  # v1.1.2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          deno-version: v1.x
+          node-version: 20
+          cache: npm
 
-      # Uncomment this step to verify the use of 'deno fmt' on each commit.
-      # - name: Verify formatting
-      #   run: deno fmt --check
+      - name: Install dependencies
+        # Skip postinstall (electron-rebuild) — not needed for lint/typecheck/build
+        run: npm ci --ignore-scripts
 
-      - name: Run linter
-        run: deno lint
+      - name: Type-check
+        run: npm run typecheck
 
-      - name: Run tests
-        run: deno test -A
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build

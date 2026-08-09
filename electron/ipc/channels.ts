@@ -8,6 +8,7 @@ export const IPC = {
     UPDATE:     'tasks:update',
     DELETE:     'tasks:delete',
     ARCHIVE:    'tasks:archive',
+    REORDER:    'tasks:reorder',
   },
   CATEGORIES: {
     GET_ALL: 'categories:getAll',
@@ -25,6 +26,27 @@ export const IPC = {
     GET_STREAK:       'completions:getStreak',
     DELETE_FOR_DATE:  'completions:deleteForDate',
   },
+  SUBTASKS: {
+    GET_FOR_TASK: 'subtasks:getForTask',
+    CREATE:       'subtasks:create',
+    UPDATE:       'subtasks:update',
+    DELETE:       'subtasks:delete',
+    REORDER:      'subtasks:reorder',
+  },
+  TAGS: {
+    GET_ALL:       'tags:getAll',
+    CREATE:        'tags:create',
+    UPDATE:        'tags:update',
+    DELETE:        'tags:delete',
+    SET_TASK_TAGS: 'tags:setTaskTags',
+    GET_FOR_TASK:  'tags:getForTask',
+  },
+  ANALYTICS: {
+    GET_WEEKLY_STATS:     'analytics:getWeeklyStats',
+    GET_HEATMAP_DATA:     'analytics:getHeatmapData',
+    EXPORT_TASKS:         'analytics:exportTasks',
+    EXPORT_COMPLETIONS:   'analytics:exportCompletions',
+  },
   RECURRENCES: {
     CREATE: 'recurrences:create',
     UPDATE: 'recurrences:update',
@@ -35,6 +57,7 @@ export const IPC = {
     OPEN_DATA_FOLDER:    'app:openDataFolder',
     UPDATE_TRAY_COUNT:   'app:updateTrayCount',
     SNOOZE_TASK:         'app:snoozeTask',
+    SAVE_EXPORT_FILE:    'app:saveExportFile',
   },
   TASKS_CALENDAR: {
     GET_OCCURRENCES_FOR_MONTH: 'tasks:getOccurrencesForMonth',

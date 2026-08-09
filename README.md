@@ -15,6 +15,7 @@ A cross-platform, offline-first desktop app for daily task tracking built with *
 | Notifications | ✅ Native OS via node-cron | ✅ Web Notifications API |
 | System tray | ✅ Full | ❌ Not available |
 | Snooze | ✅ Notification buttons + in-app | ✅ In-app button only |
+| Export | ✅ Native Save File dialog | ✅ Browser download |
 | **Recommended for** | **Daily real use** | **UI preview / development only** |
 
 > The browser mode exists for development preview. For actual task tracking, always use `npm run dev` (Electron desktop app).
@@ -25,10 +26,13 @@ A cross-platform, offline-first desktop app for daily task tracking built with *
 
 ### Task Management
 - Create tasks with **title, description, category, priority, due date, due time, and schedule type**
+- **Tags** — attach colour-coded free-form labels; create tags inline while editing a task
+- **Sub-tasks / Checklists** — expandable checklist items inside every task; progress bar + drag-to-reorder
 - **Edit** any task at any time — click the title or use the ⋯ menu
 - **Archive** tasks to hide them without losing history
 - **Delete** tasks permanently with confirmation
 - **Full-text search** on title and description
+- **Drag-and-drop reorder** tasks within any list view
 
 ### Categories
 - **9 built-in categories** pre-seeded on first launch:
@@ -57,7 +61,14 @@ A cross-platform, offline-first desktop app for daily task tracking built with *
 - **Today** — shows only tasks due today or recurring tasks scheduled for today
 - **All Tasks** — all tasks with Priority / Status / Schedule Type filter chips + search
 - **Calendar** — monthly grid with task-density dots; click any day to see its tasks
+- **Weekly Review** — completion rate ring, per-category & per-priority breakdowns, top streaks, week navigation
+- **Heatmap** — GitHub-style 52-week activity grid showing completions, hover tooltip
+- **Export Data** — CSV or JSON export of all tasks and completion history
 - **Category views** — per-category filtered lists
+
+### Productivity Tools
+- 🍅 **Pomodoro Timer** — per-task 25/5/15 min focus timer with audio cue, phase indicator, and page-title countdown; launch from any task card via the 🍅 button
+- ⌨ **Global hotkey** — `Ctrl+Shift+Space` (macOS: `Cmd+Shift+Space`) brings TaskFlow to the front and opens the quick-add task modal from anywhere on your desktop
 
 ### Notifications
 - **Desktop notifications** (Electron) via `node-cron` — fire at task due time
@@ -150,15 +161,26 @@ Output goes to `dist/`.
 
 A single SQLite file. Copy it to back up. Delete it to reset.
 
+You can also export your data at any time using **Export Data** in the sidebar.
+
 ---
 
 ## Using the App
 
 ### Creating a task
-1. Click **+ Add Task** (top-right)
-2. Enter title (required), then optionally: description, category, priority, due date/time, schedule type
+1. Click **+ Add Task** (top-right) — or press `Ctrl+Shift+Space` from anywhere on your desktop
+2. Enter title (required), then optionally: description, category, priority, due date/time, schedule type, tags
 3. Toggle **🔁 Recurrence** to On to set a repeat pattern
 4. Click **Create Task**
+
+### Adding sub-tasks
+On any task card: open the **⋯** menu → **🔽 Show Sub-tasks**. Type a sub-task title and press Enter. Check items off as you go. Drag the ⠿ handle to reorder.
+
+### Using Tags
+In the task form, click the **Tags** field (🏷 Add tags…). Pick from existing tags or type a new name and choose a colour. Tags are displayed as coloured chips on task cards.
+
+### Focus with the Pomodoro Timer
+Hover any task card and click the 🍅 button. A 25-minute focus timer starts. After each work round a short break begins automatically. The page title shows the countdown while you work in other windows.
 
 ### Completing tasks
 Open **Today** view. Each task card shows action buttons. Click **✅ Done** to mark complete.
@@ -169,6 +191,18 @@ Click **⏭ Tomorrow** or **📅 Pick Day** on a task card to push it to a futur
 ### Snoozing a notification
 - From the notification: click **Snooze 5 min / 10 min / 30 min**
 - From the app: click **💤 Snooze** on the task card → choose duration
+
+### Reordering tasks
+In Today or All Tasks view, drag any card by its ⠿ handle or drag the card itself. The new order is saved automatically.
+
+### Reviewing your week
+Click **📊 Weekly Review** in the sidebar. Navigate back with **← Prev** to review any past week.
+
+### Viewing your activity heatmap
+Click **🟩 Heatmap** in the sidebar. Hover any cell to see that day's completion details.
+
+### Exporting data
+Click **⬇ Export Data** in the sidebar. Choose Tasks or Completion History, pick CSV or JSON, and click **⬇ Export**. A save dialog opens (or a browser download triggers).
 
 ### Deleting a recurring task
 - **Delete just today:** ⋯ menu → **⏩ Skip Today Only**
@@ -191,16 +225,31 @@ Relaunch — a fresh database is created with default categories.
 ```
 daily-task-tracker/
 ├── electron/
-│   ├── main.ts                    Electron main process
-│   ├── preload.ts                 contextBridge → window.taskApi
+│   ├── main.ts                    Electron main process + global hotkey
+│   ├── preload.ts                 contextBridge → window.taskApi + electronBridge
 │   ├── db/                        SQLite data access layer
+│   │   ├── tasks.ts / categories.ts / completions.ts / recurrences.ts
+│   │   ├── subtasks.ts            Sub-task CRUD
+│   │   ├── tags.ts                Tag CRUD + task-tag join
+│   │   └── analytics.ts           Weekly stats, heatmap, export queries
 │   ├── ipc/                       IPC channel constants + handlers
 │   ├── scheduler/                 Recurrence engine + notification scheduler
 │   └── tray/                      System tray
 ├── src/
-│   ├── App.tsx                    Root React component
-│   ├── components/                UI components (Layout, Sidebar, TaskCard, etc.)
-│   ├── pages/                     Views (Today, AllTasks, Category, Calendar)
+│   ├── App.tsx                    Root React component + global hotkey listener
+│   ├── components/                UI components
+│   │   ├── TaskCard.tsx           Task card (Pomodoro button, sub-task badge, tag chips, drag handle)
+│   │   ├── TaskList.tsx           List with drag-and-drop reorder support
+│   │   ├── TaskForm.tsx           Create/edit form with TagPicker
+│   │   ├── SubtaskList.tsx        Inline checklist with progress bar
+│   │   ├── TagPicker.tsx          Multi-select tag picker with inline create
+│   │   ├── PomodoroTimer.tsx      25/5/15 min focus timer with SVG ring
+│   │   └── …                     Layout, Sidebar, CompletionActions, FilterBar, etc.
+│   ├── pages/
+│   │   ├── TodayView.tsx / AllTasksView.tsx / CategoryView.tsx / CalendarView.tsx
+│   │   ├── WeeklyReviewView.tsx   Completion stats + chart
+│   │   ├── HeatmapView.tsx        GitHub-style activity heatmap
+│   │   └── ExportView.tsx         CSV/JSON data export
 │   ├── context/                   Global app state
 │   ├── hooks/                     useTheme
 │   ├── lib/                       mockApi (browser), browserNotifications, utils
@@ -223,10 +272,11 @@ Full documentation is in [`docs/wiki/`](./docs/wiki/):
 | [01 — Overview](./docs/wiki/01-overview.md) | What TaskFlow is, desktop vs browser |
 | [02 — Installation](./docs/wiki/02-installation.md) | Windows, macOS, Linux setup |
 | [03 — Getting Started](./docs/wiki/03-getting-started.md) | First launch, interface tour |
-| [04 — Task Management](./docs/wiki/04-task-management.md) | Tasks, recurrence, completions, filters |
+| [04 — Task Management](./docs/wiki/04-task-management.md) | Tasks, recurrence, sub-tasks, tags, completions, filters |
 | [05 — Notifications & Tray](./docs/wiki/05-notifications-tray.md) | Notifications, snooze, tray |
-| [06 — Data & Backup](./docs/wiki/06-data-backup.md) | Storage, backup, reset |
+| [06 — Data & Backup](./docs/wiki/06-data-backup.md) | Storage, backup, reset, export, DB schema |
 | [07 — Developer Guide](./docs/wiki/07-developer-guide.md) | Architecture, IPC, contributing |
+| [08 — New Features Guide](./docs/wiki/08-new-features.md) | Tags, sub-tasks, Pomodoro, heatmap, weekly review, export, drag-and-drop, global hotkey |
 
 ---
 
@@ -239,6 +289,7 @@ Full documentation is in [`docs/wiki/`](./docs/wiki/):
 | PowerShell script blocked | `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` |
 | npm install skips scripts | `npm approve-scripts electron@28.3.3` then `npm install --foreground-scripts` |
 | Notifications not appearing (Windows) | Settings → Notifications → TaskFlow → On |
+| Global hotkey not working | Another app may have claimed `Ctrl+Shift+Space`; check for conflicts |
 | Categories missing in browser | Browser mode uses in-memory demo data — this is expected |
 
 ---

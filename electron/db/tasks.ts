@@ -332,3 +332,10 @@ export function archive(id: number): boolean {
     .run(id)
   return result.changes > 0
 }
+
+export function reorderTasks(ids: number[]): void {
+  const db = getDb()
+  const stmt = db.prepare<[number, number]>('UPDATE tasks SET sort_order = ? WHERE id = ?')
+  const run = db.transaction(() => { ids.forEach((id, i) => stmt.run(i, id)) })
+  run()
+}

@@ -1,10 +1,6 @@
 import { getDb } from './database'
 import type { TaskCompletion } from './types'
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 export function upsert(data: Omit<TaskCompletion, 'id'>): TaskCompletion {
   const db = getDb()
   db.prepare<Omit<TaskCompletion, 'id'>>(
@@ -94,7 +90,8 @@ export function getStreak(task_id: number): number {
   const cursor = new Date()
   cursor.setDate(cursor.getDate() - 1) // start from yesterday
 
-  while (true) {
+  // eslint-disable-next-line no-constant-condition
+  for (;;) {
     const dateStr = cursor.toISOString().slice(0, 10)
     const row = stmt.get(task_id, dateStr)
     if (!row) break

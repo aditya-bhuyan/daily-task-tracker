@@ -3,6 +3,91 @@
 // cross-project imports between the renderer (tsconfig.web.json) and the
 // main-process TypeScript project (tsconfig.node.json).
 
+// ─── Tag ─────────────────────────────────────────────────────────────────────
+
+export interface Tag {
+  id: number
+  name: string
+  color: string
+}
+
+// ─── Subtask ──────────────────────────────────────────────────────────────────
+
+export interface Subtask {
+  id: number
+  task_id: number
+  title: string
+  completed: boolean
+  sort_order: number
+  created_at: string
+}
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+export interface CategoryStat {
+  category_id: number | null
+  category_name: string
+  category_icon: string
+  completed: number
+  total: number
+}
+
+export interface PriorityStat {
+  priority: string
+  completed: number
+  total: number
+}
+
+export interface StreakEntry {
+  task_id: number
+  title: string
+  streak: number
+}
+
+export interface WeeklyStats {
+  week_start: string
+  week_end: string
+  total_scheduled: number
+  completed: number
+  skipped: number
+  deferred: number
+  completion_rate: number
+  by_category: CategoryStat[]
+  by_priority: PriorityStat[]
+  top_streaks: StreakEntry[]
+}
+
+export interface HeatmapDay {
+  date: string
+  completed: number
+  skipped: number
+  deferred: number
+  total: number
+}
+
+export interface ExportRow {
+  task_id: number
+  title: string
+  description: string | null
+  category: string
+  priority: string
+  due_date: string | null
+  recurrence_type: string | null
+  status: string
+  tags: string
+  created_at: string
+}
+
+export interface CompletionExportRow {
+  task_id: number
+  task_title: string
+  occurrence_date: string
+  status: string
+  deferred_to: string | null
+  completed_at: string | null
+  notes: string | null
+}
+
 export interface Category {
   id: number
   name: string
@@ -34,6 +119,7 @@ export interface Task {
   recurrence_id: number | null
   schedule_type: 'any' | 'weekday' | 'weekend'
   status: 'active' | 'archived'
+  sort_order: number
   created_at: string
   updated_at: string
 }
@@ -52,6 +138,8 @@ export interface TaskWithDetails extends Task {
   category?: Category
   recurrence?: Recurrence
   completion_today?: TaskCompletion
+  tags?: Tag[]
+  subtasks?: Subtask[]
 }
 
 type TaskFilters = {
@@ -80,6 +168,7 @@ export interface TaskApi {
     update(id: number, data: UpdateTaskInput): Promise<TaskWithDetails | undefined>
     delete(id: number): Promise<boolean>
     archive(id: number): Promise<boolean>
+    reorder(ids: number[]): Promise<void>
   }
   categories: {
     getAll(): Promise<Category[]>
@@ -97,11 +186,33 @@ export interface TaskApi {
     getStreak(task_id: number): Promise<number>
     deleteForDate(task_id: number, occurrence_date: string): Promise<boolean>
   }
+  subtasks: {
+    getForTask(task_id: number): Promise<Subtask[]>
+    create(task_id: number, title: string): Promise<Subtask>
+    update(id: number, data: { title?: string; completed?: boolean }): Promise<Subtask | undefined>
+    delete(id: number): Promise<boolean>
+    reorder(task_id: number, ids: number[]): Promise<void>
+  }
+  tags: {
+    getAll(): Promise<Tag[]>
+    create(name: string, color?: string): Promise<Tag>
+    update(id: number, data: { name?: string; color?: string }): Promise<Tag | undefined>
+    delete(id: number): Promise<boolean>
+    setTaskTags(task_id: number, tag_ids: number[]): Promise<void>
+    getForTask(task_id: number): Promise<Tag[]>
+  }
+  analytics: {
+    getWeeklyStats(weekOffset?: number): Promise<WeeklyStats>
+    getHeatmapData(days?: number): Promise<HeatmapDay[]>
+    exportTasks(): Promise<ExportRow[]>
+    exportCompletions(): Promise<CompletionExportRow[]>
+  }
   app: {
     getVersion(): Promise<string>
     openDataFolder(): Promise<void>
     updateTrayCount(count: number): Promise<void>
     snoozeTask(taskId: number, minutes: number): Promise<boolean>
+    saveExportFile(filename: string, content: string): Promise<string>
   }
   calendar: {
     getOccurrencesForMonth(year: number, month: number): Promise<Record<string, number>>

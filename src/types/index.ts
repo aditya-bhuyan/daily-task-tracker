@@ -4,7 +4,16 @@
 export type {
   Category,
   Recurrence,
+  Tag,
+  Subtask,
   Task,
   TaskCompletion,
   TaskWithDetails,
+  WeeklyStats,
+  HeatmapDay,
+  CategoryStat,
+  PriorityStat,
+  StreakEntry,
+  ExportRow,
+  CompletionExportRow,
 } from './api.d'

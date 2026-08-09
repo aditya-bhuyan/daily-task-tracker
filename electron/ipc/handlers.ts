@@ -1,10 +1,14 @@
-import { IpcMain, BrowserWindow, app, shell } from 'electron'
-import { join } from 'path'
+import { IpcMain, BrowserWindow, app, shell, dialog } from 'electron'
+import { join, basename } from 'path'
+import { writeFileSync } from 'fs'
 import { IPC } from './channels'
 import * as tasks from '../db/tasks'
 import * as categories from '../db/categories'
 import * as recurrences from '../db/recurrences'
 import * as completions from '../db/completions'
+import * as subtasks from '../db/subtasks'
+import * as tags from '../db/tags'
+import * as analytics from '../db/analytics'
 import { updateTrayTooltip } from '../tray/tray'
 import { rescheduleAll, snoozeTask } from '../scheduler/notificationScheduler'
 
@@ -69,6 +73,10 @@ export function registerHandlers(ipcMain: IpcMain, mainWindow: BrowserWindow): v
     } catch (e) { return fail(e) }
   })
 
+  ipcMain.handle(IPC.TASKS.REORDER, (_e, ids: number[]) => {
+    try { tasks.reorderTasks(ids); return ok(true) } catch (e) { return fail(e) }
+  })
+
   // ── Categories ─────────────────────────────────────────────────────────────
   ipcMain.handle(IPC.CATEGORIES.GET_ALL, (_e) => {
     try { return ok(categories.getAll()) } catch (e) { return fail(e) }
@@ -119,6 +127,69 @@ export function registerHandlers(ipcMain: IpcMain, mainWindow: BrowserWindow): v
     try { return ok(completions.deleteForDate(task_id, occurrence_date)) } catch (e) { return fail(e) }
   })
 
+  // ── Subtasks ───────────────────────────────────────────────────────────────
+  ipcMain.handle(IPC.SUBTASKS.GET_FOR_TASK, (_e, task_id: number) => {
+    try { return ok(subtasks.getForTask(task_id)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.SUBTASKS.CREATE, (_e, task_id: number, title: string) => {
+    try { return ok(subtasks.create(task_id, title)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.SUBTASKS.UPDATE, (_e, id: number, data) => {
+    try { return ok(subtasks.update(id, data)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.SUBTASKS.DELETE, (_e, id: number) => {
+    try { return ok(subtasks.deleteSubtask(id)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.SUBTASKS.REORDER, (_e, task_id: number, ids: number[]) => {
+    try { subtasks.reorder(task_id, ids); return ok(true) } catch (e) { return fail(e) }
+  })
+
+  // ── Tags ───────────────────────────────────────────────────────────────────
+  ipcMain.handle(IPC.TAGS.GET_ALL, (_e) => {
+    try { return ok(tags.getAll()) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.TAGS.CREATE, (_e, name: string, color?: string) => {
+    try { return ok(tags.create(name, color)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.TAGS.UPDATE, (_e, id: number, data) => {
+    try { return ok(tags.update(id, data)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.TAGS.DELETE, (_e, id: number) => {
+    try { return ok(tags.deleteTag(id)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.TAGS.SET_TASK_TAGS, (_e, task_id: number, tag_ids: number[]) => {
+    try { tags.setTaskTags(task_id, tag_ids); return ok(true) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.TAGS.GET_FOR_TASK, (_e, task_id: number) => {
+    try { return ok(tags.getForTask(task_id)) } catch (e) { return fail(e) }
+  })
+
+  // ── Analytics ──────────────────────────────────────────────────────────────
+  ipcMain.handle(IPC.ANALYTICS.GET_WEEKLY_STATS, (_e, weekOffset?: number) => {
+    try { return ok(analytics.getWeeklyStats(weekOffset)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.ANALYTICS.GET_HEATMAP_DATA, (_e, days?: number) => {
+    try { return ok(analytics.getHeatmapData(days)) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.ANALYTICS.EXPORT_TASKS, (_e) => {
+    try { return ok(analytics.exportTasks()) } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.ANALYTICS.EXPORT_COMPLETIONS, (_e) => {
+    try { return ok(analytics.exportCompletions()) } catch (e) { return fail(e) }
+  })
+
   // ── Recurrences ────────────────────────────────────────────────────────────
   ipcMain.handle(IPC.RECURRENCES.CREATE, (_e, data) => {
     try { return ok(recurrences.create(data)) } catch (e) { return fail(e) }
@@ -154,6 +225,23 @@ export function registerHandlers(ipcMain: IpcMain, mainWindow: BrowserWindow): v
       if (!task) return ok(false)
       snoozeTask(task, minutes)
       return ok(true)
+    } catch (e) { return fail(e) }
+  })
+
+  ipcMain.handle(IPC.APP.SAVE_EXPORT_FILE, async (_e, filename: string, content: string) => {
+    try {
+      const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save Export',
+        defaultPath: join(app.getPath('downloads'), filename),
+        filters: [
+          { name: 'CSV Files', extensions: ['csv'] },
+          { name: 'JSON Files', extensions: ['json'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      })
+      if (canceled || !filePath) return ok('')
+      writeFileSync(filePath, content, 'utf-8')
+      return ok(basename(filePath))
     } catch (e) { return fail(e) }
   })
 

@@ -15,13 +15,6 @@ const MONTH_NAMES = [
 
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
-function toISO(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate()
 }

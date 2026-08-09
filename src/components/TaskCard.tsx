@@ -9,8 +9,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { CompletionActions } from '@/components/CompletionActions'
 import { TaskModal } from '@/components/TaskModal'
+import { SubtaskList } from '@/components/SubtaskList'
+import { PomodoroTimer } from '@/components/PomodoroTimer'
 import type { TaskWithDetails } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -24,22 +31,23 @@ const PRIORITY_STYLES: Record<string, string> = {
 }
 
 // ---------------------------------------------------------------------------
-// 3-dot dropdown menu (no Radix DropdownMenu dep — simple positioned div)
+// 3-dot dropdown menu
 // ---------------------------------------------------------------------------
 
 interface DotMenuProps {
   onEdit: () => void
   onArchive: () => void
   onDelete: () => void
-  onSkipToday?: () => void   // only for recurring tasks
+  onSkipToday?: () => void
   onMoveToTomorrow?: () => void
+  onToggleSubtasks: () => void
+  showingSubtasks: boolean
 }
 
-function DotMenu({ onEdit, onArchive, onDelete, onSkipToday, onMoveToTomorrow }: DotMenuProps) {
+function DotMenu({ onEdit, onArchive, onDelete, onSkipToday, onMoveToTomorrow, onToggleSubtasks, showingSubtasks }: DotMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return
     function handler(e: MouseEvent) {
@@ -60,45 +68,28 @@ function DotMenu({ onEdit, onArchive, onDelete, onSkipToday, onMoveToTomorrow }:
         ⋯
       </button>
       {open && (
-        <div className="absolute right-0 top-8 z-50 min-w-[170px] rounded-md border bg-popover py-1 shadow-md">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-            onClick={() => { setOpen(false); onEdit() }}
-          >
+        <div className="absolute right-0 top-8 z-50 min-w-[180px] rounded-md border bg-popover py-1 shadow-md">
+          <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent" onClick={() => { setOpen(false); onEdit() }}>
             ✏️ Edit
           </button>
+          <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent" onClick={() => { setOpen(false); onToggleSubtasks() }}>
+            {showingSubtasks ? '🔼 Hide Sub-tasks' : '🔽 Show Sub-tasks'}
+          </button>
           {onMoveToTomorrow && (
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-              onClick={() => { setOpen(false); onMoveToTomorrow() }}
-            >
+            <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent" onClick={() => { setOpen(false); onMoveToTomorrow() }}>
               ⏭ Move to Tomorrow
             </button>
           )}
           {onSkipToday && (
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-              onClick={() => { setOpen(false); onSkipToday() }}
-            >
+            <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent" onClick={() => { setOpen(false); onSkipToday() }}>
               ⏩ Skip Today Only
             </button>
           )}
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
-            onClick={() => { setOpen(false); onArchive() }}
-          >
+          <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent" onClick={() => { setOpen(false); onArchive() }}>
             📦 Archive
           </button>
           <div className="my-1 border-t border-border" />
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"
-            onClick={() => { setOpen(false); onDelete() }}
-          >
+          <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10" onClick={() => { setOpen(false); onDelete() }}>
             🗑 {onSkipToday ? 'Delete All Occurrences' : 'Delete'}
           </button>
         </div>
@@ -131,7 +122,7 @@ function DeleteConfirmDialog({
           <DialogTitle>Delete Task?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          "<span className="font-medium text-foreground">{taskTitle}</span>" will be permanently
+          &ldquo;<span className="font-medium text-foreground">{taskTitle}</span>&rdquo; will be permanently
           deleted{isRecurring ? ' along with all future occurrences and' : ' along with'} its completion history. This cannot be undone.
         </p>
         {isRecurring && (
@@ -140,12 +131,8 @@ function DeleteConfirmDialog({
           </p>
         )}
         <DialogFooter className="pt-2">
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={onConfirm}>
-            Delete All
-          </Button>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant="destructive" onClick={onConfirm}>Delete All</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -153,22 +140,27 @@ function DeleteConfirmDialog({
 }
 
 // ---------------------------------------------------------------------------
-// TaskCard
+// TaskCard — Feature 7: drag-and-drop handle
 // ---------------------------------------------------------------------------
 
 export interface TaskCardProps {
   task: TaskWithDetails
-  todayDate?: string // if provided, shows completion actions
+  todayDate?: string
   onTaskChange: () => void
+  /** drag-and-drop callbacks (Feature 7) */
+  onDragStart?: (id: number) => void
+  onDragOver?: (e: React.DragEvent, id: number) => void
+  onDrop?: () => void
+  isDragOver?: boolean
 }
 
-export function TaskCard({ task, todayDate, onTaskChange }: TaskCardProps) {
+export function TaskCard({ task, todayDate, onTaskChange, onDragStart, onDragOver, onDrop, isDragOver }: TaskCardProps) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [streak, setStreak] = useState<number>(0)
+  const [showSubtasks, setShowSubtasks] = useState(false)
   const isRecurring = !!task.recurrence_id
 
-  // Fetch streak for recurring tasks
   useEffect(() => {
     if (!isRecurring) return
     if (typeof window === 'undefined' || !window.taskApi) return
@@ -176,17 +168,11 @@ export function TaskCard({ task, todayDate, onTaskChange }: TaskCardProps) {
   }, [task.id, isRecurring])
 
   async function handleArchive() {
-    try {
-      await window.taskApi.tasks.archive(task.id)
-      onTaskChange()
-    } catch { /* silent */ }
+    try { await window.taskApi.tasks.archive(task.id); onTaskChange() } catch { /* silent */ }
   }
 
   async function handleDelete() {
-    try {
-      await window.taskApi.tasks.delete(task.id)
-      onTaskChange()
-    } catch { /* silent */ }
+    try { await window.taskApi.tasks.delete(task.id); onTaskChange() } catch { /* silent */ }
   }
 
   function tomorrowDate(): string {
@@ -197,33 +183,37 @@ export function TaskCard({ task, todayDate, onTaskChange }: TaskCardProps) {
 
   async function handleSkipToday() {
     if (!todayDate || typeof window === 'undefined' || !window.taskApi) return
-    try {
-      await window.taskApi.completions.markSkipped(task.id, todayDate)
-      onTaskChange()
-    } catch { /* silent */ }
+    try { await window.taskApi.completions.markSkipped(task.id, todayDate); onTaskChange() } catch { /* silent */ }
   }
 
   async function handleMoveToTomorrow() {
     if (!todayDate || typeof window === 'undefined' || !window.taskApi) return
-    try {
-      await window.taskApi.completions.markDeferred(task.id, todayDate, tomorrowDate())
-      onTaskChange()
-    } catch { /* silent */ }
+    try { await window.taskApi.completions.markDeferred(task.id, todayDate, tomorrowDate()); onTaskChange() } catch { /* silent */ }
   }
 
   const priorityClass = PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.medium
   const isCompleted = task.completion_today?.status === 'completed'
 
+  // Subtask progress badge
+  const subtaskCount = task.subtasks?.length ?? 0
+  const subtaskDone  = task.subtasks?.filter(s => s.completed).length ?? 0
+
   return (
     <>
       <Card
-        className={`group relative transition-shadow hover:shadow-sm ${
-          isCompleted ? 'opacity-60' : ''
-        }`}
+        draggable={!!onDragStart}
+        onDragStart={() => onDragStart?.(task.id)}
+        onDragOver={(e) => onDragOver?.(e, task.id)}
+        onDrop={onDrop}
+        onDragEnd={() => {/* cleanup handled by parent */}}
+        className={`group relative transition-shadow hover:shadow-sm ${isCompleted ? 'opacity-60' : ''} ${isDragOver ? 'ring-2 ring-primary' : ''} ${onDragStart ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
         <CardContent className="flex flex-col gap-1 px-4 py-3">
-          {/* Row 1: title + 3-dot menu */}
+          {/* Row 1: drag handle + title + controls */}
           <div className="flex items-start justify-between gap-2">
+            {onDragStart && (
+              <span className="mt-0.5 shrink-0 cursor-grab text-muted-foreground opacity-30 select-none text-xs">⠿</span>
+            )}
             <button
               type="button"
               className="flex-1 text-left text-sm font-medium leading-snug hover:underline"
@@ -231,16 +221,34 @@ export function TaskCard({ task, todayDate, onTaskChange }: TaskCardProps) {
             >
               {isCompleted ? (
                 <span className="line-through text-muted-foreground">{task.title}</span>
-              ) : (
-                task.title
-              )}
+              ) : task.title}
             </button>
+
+            {/* Pomodoro timer popover */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground focus:opacity-100 text-sm"
+                  aria-label="Pomodoro timer"
+                  title="Pomodoro timer"
+                >
+                  🍅
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <PomodoroTimer taskTitle={task.title} onComplete={onTaskChange} />
+              </PopoverContent>
+            </Popover>
+
             <DotMenu
               onEdit={() => setEditOpen(true)}
               onArchive={handleArchive}
               onDelete={() => setDeleteOpen(true)}
               onSkipToday={isRecurring ? handleSkipToday : undefined}
               onMoveToTomorrow={todayDate ? handleMoveToTomorrow : undefined}
+              onToggleSubtasks={() => setShowSubtasks(s => !s)}
+              showingSubtasks={showSubtasks}
             />
           </div>
 
@@ -254,9 +262,7 @@ export function TaskCard({ task, todayDate, onTaskChange }: TaskCardProps) {
                 {task.category.icon} {task.category.name}
               </span>
             )}
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${priorityClass}`}
-            >
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${priorityClass}`}>
               {task.priority}
             </span>
             {task.schedule_type !== 'any' && (
@@ -265,41 +271,51 @@ export function TaskCard({ task, todayDate, onTaskChange }: TaskCardProps) {
               </Badge>
             )}
             {task.due_time && (
-              <Badge variant="outline" className="text-xs">
-                🕐 {task.due_time}
-              </Badge>
+              <Badge variant="outline" className="text-xs">🕐 {task.due_time}</Badge>
             )}
             {task.due_date && (
-              <Badge variant="outline" className="text-xs">
-                📆 {task.due_date}
-              </Badge>
+              <Badge variant="outline" className="text-xs">📆 {task.due_date}</Badge>
             )}
             {task.recurrence && (
-              <Badge variant="outline" className="text-xs">
-                🔁 {task.recurrence.type}
+              <Badge variant="outline" className="text-xs">🔁 {task.recurrence.type}</Badge>
+            )}
+            {/* Tags — Feature 4 */}
+            {(task.tags ?? []).map(tag => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                style={{ backgroundColor: tag.color }}
+              >
+                🏷 {tag.name}
+              </span>
+            ))}
+            {/* Subtask progress badge */}
+            {subtaskCount > 0 && (
+              <Badge
+                variant="outline"
+                className={`text-xs cursor-pointer ${subtaskDone === subtaskCount ? 'text-green-600 border-green-400' : ''}`}
+                onClick={() => setShowSubtasks(s => !s)}
+              >
+                ☑ {subtaskDone}/{subtaskCount}
               </Badge>
             )}
           </div>
 
           {/* Completion actions */}
           {todayDate && (
-            <CompletionActions
-              task={task}
-              todayDate={todayDate}
-              onActionComplete={onTaskChange}
-            />
+            <CompletionActions task={task} todayDate={todayDate} onActionComplete={onTaskChange} />
           )}
 
           {/* Streak indicator */}
           {streak >= 2 && (
-            <p className="mt-0.5 text-xs text-orange-500 dark:text-orange-400">
-              🔥 {streak} day streak
-            </p>
+            <p className="mt-0.5 text-xs text-orange-500 dark:text-orange-400">🔥 {streak} day streak</p>
           )}
+
+          {/* Sub-task checklist — Feature 3 */}
+          {showSubtasks && <SubtaskList taskId={task.id} />}
         </CardContent>
       </Card>
 
-      {/* Edit modal */}
       <TaskModal
         open={editOpen}
         task={task}
@@ -307,7 +323,6 @@ export function TaskCard({ task, todayDate, onTaskChange }: TaskCardProps) {
         onSaved={() => { setEditOpen(false); onTaskChange() }}
       />
 
-      {/* Delete confirm */}
       <DeleteConfirmDialog
         open={deleteOpen}
         taskTitle={task.title}

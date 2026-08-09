@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   recurrence_id INTEGER REFERENCES recurrences(id) ON DELETE SET NULL,
   schedule_type TEXT NOT NULL DEFAULT 'any' CHECK(schedule_type IN ('any','weekday','weekend')),
   status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived')),
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -45,10 +46,34 @@ CREATE TABLE IF NOT EXISTS task_completions (
   UNIQUE(task_id, occurrence_date)
 );
 
+CREATE TABLE IF NOT EXISTS subtasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS tags (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  color TEXT NOT NULL DEFAULT '#6366f1'
+);
+
+CREATE TABLE IF NOT EXISTS task_tags (
+  task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  tag_id  INTEGER NOT NULL REFERENCES tags(id)  ON DELETE CASCADE,
+  PRIMARY KEY (task_id, tag_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(sort_order);
 CREATE INDEX IF NOT EXISTS idx_completions_task_date ON task_completions(task_id, occurrence_date);
 CREATE INDEX IF NOT EXISTS idx_completions_deferred ON task_completions(deferred_to);
+CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags(task_id);
 `
 
 export const DEFAULT_CATEGORIES = [

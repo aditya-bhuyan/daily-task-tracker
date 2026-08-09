@@ -45,6 +45,7 @@ export function TodayView() {
         isLoading={isLoading}
         todayDate={todayDate}
         onTaskChange={triggerRefresh}
+        draggable
       />
     </div>
   )
