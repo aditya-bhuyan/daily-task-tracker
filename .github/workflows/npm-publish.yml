@@ -1,13 +1,19 @@
-﻿# TaskFlow Release — Build distributables on GitHub Release
+# TaskFlow Release — Build distributables
 #
-# Triggered when a GitHub Release is published.
-# Builds installers for Windows, macOS, and Linux.
+# Triggers:
+#   • push to main          → builds all three platform installers and uploads them
+#                             as GitHub Actions workflow artefacts (downloadable from
+#                             the Actions run summary for 7 days)
+#   • GitHub Release created → additionally attaches the installers as release assets
+#                              downloadable from the Releases page
 #
 # Author: Aditya Pratap Bhuyan https://linkedin.com/in/adityabhuyan
 
 name: Release
 
 on:
+  push:
+    branches: ["main"]
   release:
     types: [created]
 
@@ -15,22 +21,43 @@ permissions:
   contents: write
 
 jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Windows
+  # ────────────────────────────────────────────────────────────────────────────
   build-windows:
     name: Build Windows installer
     runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+
       - name: Install dependencies
         run: npm ci
+
       - name: Rebuild native modules
         run: npx electron-rebuild -f -w better-sqlite3
+
       - name: Build Windows installer
         run: npm run dist:win
-      - name: Upload artifact
+
+      # Always upload as a workflow artefact (available for 7 days on every run)
+      - name: Upload artefact (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskFlow-Windows
+          path: dist/TaskFlow*.exe
+          if-no-files-found: warn
+
+      # Only attach to a GitHub Release when triggered by release:created
+      - name: Attach to GitHub Release (Windows)
+        if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,22 +67,41 @@ jobs:
           asset_name: TaskFlow-Setup-win.exe
           asset_content_type: application/octet-stream
 
+  # ────────────────────────────────────────────────────────────────────────────
+  # macOS
+  # ────────────────────────────────────────────────────────────────────────────
   build-macos:
     name: Build macOS DMG
     runs-on: macos-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+
       - name: Install dependencies
         run: npm ci
+
       - name: Rebuild native modules
         run: npx electron-rebuild -f -w better-sqlite3
+
       - name: Build macOS DMG
         run: npm run dist:mac
-      - name: Upload artifact
+
+      - name: Upload artefact (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskFlow-macOS
+          path: dist/TaskFlow*.dmg
+          if-no-files-found: warn
+
+      - name: Attach to GitHub Release (macOS)
+        if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -65,24 +111,44 @@ jobs:
           asset_name: TaskFlow-mac.dmg
           asset_content_type: application/octet-stream
 
+  # ────────────────────────────────────────────────────────────────────────────
+  # Linux
+  # ────────────────────────────────────────────────────────────────────────────
   build-linux:
     name: Build Linux AppImage
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+
       - name: Install dependencies
         run: npm ci
-      - name: Install Linux build deps
+
+      - name: Install Linux build dependencies
         run: sudo apt-get install -y libsecret-1-dev libnotify-bin
+
       - name: Rebuild native modules
         run: npx electron-rebuild -f -w better-sqlite3
+
       - name: Build Linux AppImage
         run: npm run dist:linux
-      - name: Upload artifact
+
+      - name: Upload artefact (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskFlow-Linux
+          path: dist/TaskFlow*.AppImage
+          if-no-files-found: warn
+
+      - name: Attach to GitHub Release (Linux)
+        if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
