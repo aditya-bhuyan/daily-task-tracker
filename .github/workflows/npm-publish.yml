@@ -140,14 +140,21 @@ jobs:
       - name: Build Linux AppImage
         run: npm run dist:linux
 
-      - name: Upload artefact (Linux)
+      - name: Upload artefact (Linux AppImage)
         uses: actions/upload-artifact@v4
         with:
-          name: TaskFlow-Linux
+          name: TaskFlow-Linux-AppImage
           path: dist/TaskFlow*.AppImage
           if-no-files-found: warn
 
-      - name: Attach to GitHub Release (Linux)
+      - name: Upload artefact (Linux deb)
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskFlow-Linux-deb
+          path: dist/TaskFlow*.deb
+          if-no-files-found: warn
+
+      - name: Attach AppImage to GitHub Release
         if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
         env:
@@ -156,4 +163,15 @@ jobs:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: ./dist/TaskFlow*.AppImage
           asset_name: TaskFlow-linux.AppImage
+          asset_content_type: application/octet-stream
+
+      - name: Attach .deb to GitHub Release
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dist/TaskFlow*.deb
+          asset_name: TaskFlow-linux.deb
           asset_content_type: application/octet-stream
