@@ -86,11 +86,12 @@ jobs:
           token:       ${{ secrets.EXPO_TOKEN }}
 
       - name: Install mobile dependencies
-        # Run install inside taskflow-mobile in isolation (not from workspace root)
-        # so the root workspace's hoisted deps (e.g. metro@0.87) don't shadow
-        # the versions that expo 51 + RN 0.74 expect (metro@~0.80).
+        # Use npm ci against taskflow-mobile/package-lock.json (committed) so EAS
+        # gets exact locked versions including schema-utils required by expo-router.
+        # --no-workspaces runs in isolation so root hoisted deps (e.g. metro@0.80)
+        # don't shadow the versions expo 51 + RN 0.74 expect.
         working-directory: taskflow-mobile
-        run: npm install --ignore-scripts --no-workspaces
+        run: npm ci --ignore-scripts --no-workspaces
 
       - name: Link or create EAS project (idempotent)
         # Registers the project on expo.dev by slug if it doesn't exist yet.
