@@ -3,15 +3,13 @@ import { Tray, Menu, BrowserWindow, nativeImage, app } from 'electron'
 let tray: Tray | null = null
 
 // ────────────────────────────────────────────────────────────────────────────
-// Tray icon — 64×64 RGBA PNG, white checklist marks on fully transparent bg.
-// Single unbroken base64 string (no line-split) to prevent IDAT corruption.
-// Resized to 16×16 for Windows/Linux tray; macOS uses @2x slot (32px).
+// Tray icon — 32×32 RGBA PNG, IBM blue (#3b82d4) rounded-rect background with
+// white checklist marks. Visible on both light and dark taskbars.
+// Electron/OS scales to tray size (16px Windows/Linux, 22px macOS retina).
 // ────────────────────────────────────────────────────────────────────────────
-const TRAY_ICON_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAZElEQVR42u3YsREAIQhFQfpvGhtAIwOU3QJuxpd4/ggAAChlYfThTxGyqeuH331YAAEEEOCbAONvAf8BAAAWIYuQRchzWAABBLAIWYQsQgAAFiGLkEXIc1gAAQSwCFmEAAB42AJKxqUu8UqAdAAAAABJRU5ErkJggg=='
+const TRAY_ICON_B64 = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAZmlEQVR42mNgGEzAuunKf3rgAbUcqyPobTmGI0YdMOoAUjWSC4aPA5AdMaBRMCBpgFqW43UALguoaTlBB6BbRG3LCUYBLcDQcgCh9DBaF4w6YDQbDnhtOJoIRx0w5HtHg69zOlAAACuDlzAhRM7AAAAAAElFTkSuQmCC'
 
-const TRAY_ICON = nativeImage
-  .createFromDataURL('data:image/png;base64,' + TRAY_ICON_B64)
-  .resize({ width: 16, height: 16 })
+const TRAY_ICON = nativeImage.createFromDataURL('data:image/png;base64,' + TRAY_ICON_B64)
 
 function buildContextMenu(mainWindow: BrowserWindow): Electron.Menu {
   return Menu.buildFromTemplate([

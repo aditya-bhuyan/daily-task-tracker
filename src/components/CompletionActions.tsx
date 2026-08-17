@@ -25,6 +25,7 @@ export interface CompletionActionsProps {
 export function CompletionActions({ task, todayDate, onActionComplete }: CompletionActionsProps) {
   const [deferDate, setDeferDate] = useState('')
   const [deferOpen, setDeferOpen] = useState(false)
+  const [snoozeOpen, setSnoozeOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const completion = task.completion_today
@@ -197,7 +198,7 @@ export function CompletionActions({ task, todayDate, onActionComplete }: Complet
       </Button>
 
       {/* Snooze */}
-      <Popover>
+      <Popover open={snoozeOpen} onOpenChange={setSnoozeOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"
@@ -217,7 +218,7 @@ export function CompletionActions({ task, todayDate, onActionComplete }: Complet
                 key={mins}
                 type="button"
                 className="rounded px-3 py-1.5 text-left text-sm hover:bg-accent"
-                onClick={() => snoozeTask(task.id, mins)}
+                onClick={() => { setSnoozeOpen(false); snoozeTask(task.id, mins) }}
               >
                 {mins < 60 ? `${mins} minutes` : '1 hour'}
               </button>
