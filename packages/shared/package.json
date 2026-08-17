@@ -1,6 +1,6 @@
 {
   "name": "@taskflow/shared",
-  "version": "0.1.0",
+  "version": "1.0.4",
   "description": "Shared TypeScript types for TaskFlow desktop and mobile",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

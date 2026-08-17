@@ -1,6 +1,6 @@
 {
   "name": "taskflow-mobile",
-  "version": "0.1.0",
+  "version": "1.0.4",
   "main": "expo-router/entry",
   "description": "TaskFlow Mobile — React Native app (Expo)",
   "license": "MIT",
