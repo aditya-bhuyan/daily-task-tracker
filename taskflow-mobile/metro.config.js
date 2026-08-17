@@ -9,8 +9,12 @@ const workspaceRoot = path.resolve(projectRoot, '..')
 
 const config = getDefaultConfig(projectRoot)
 
-// ── Monorepo: watch all workspace packages ────────────────────────────────────
-config.watchFolders = [workspaceRoot]
+// ── Monorepo: watch workspace root so Metro can resolve @taskflow/shared ──────
+// Merges with (rather than replaces) Expo's default watchFolders
+config.watchFolders = [
+  ...( config.watchFolders ?? [] ),
+  workspaceRoot,
+]
 
 // ── Monorepo: resolve modules from both projectRoot and workspaceRoot ─────────
 config.resolver.nodeModulesPaths = [
