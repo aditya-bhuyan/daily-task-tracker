@@ -2,7 +2,8 @@
   "expo": {
     "name": "TaskFlow",
     "slug": "taskflow-mobile",
-    "version": "1.0.6",
+    "owner": "aditya-bhuyan",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

@@ -1,6 +1,6 @@
 {
   "name": "daily-task-tracker",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Cross-platform daily task tracking desktop app",
   "main": "out/main/index.js",
   "author": "Aditya Pratap Bhuyan <adityabhuyan@example.com>",
