@@ -39,13 +39,11 @@ permissions:
 # ── Shared env ─────────────────────────────────────────────────────────────────
 env:
   NODE_VERSION: "20"
-  ELECTRON_CACHE: ~/.cache/electron
+  ELECTRON_VER: "28.3.3"
+  # electron-builder's Go app-builder looks for the zip under this path:
+  #   <ELECTRON_BUILDER_CACHE>/electron/<ver>/<filename>
+  # We pre-download it there so the builder never makes a live network call.
   ELECTRON_BUILDER_CACHE: ~/.cache/electron-builder
-  # Point the electron downloader at the official GitHub mirror so it never
-  # hits the flaky release-assets CDN that causes the wsarecv disconnections.
-  ELECTRON_MIRROR: "https://github.com/electron/electron/releases/download/"
-  # Retry failed chunk downloads up to 3 times before failing the job.
-  ELECTRON_CUSTOM_DIR: "{{ version }}"
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════════
@@ -82,12 +80,9 @@ jobs:
     name: 🪟 Build Windows installer
     runs-on: windows-latest
     needs: ci-gate              # ← only runs if lint + typecheck pass
-    # Windows electron cache lives under LOCALAPPDATA, not ~/.cache
     env:
-      ELECTRON_CACHE: ${{ github.workspace }}\.cache\electron
+      # On Windows the builder cache must be workspace-local (no ~ expansion)
       ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\.cache\electron-builder
-      # Keep the mirror override for Windows too (overrides the top-level env)
-      ELECTRON_MIRROR: "https://github.com/electron/electron/releases/download/"
 
     steps:
       - name: Checkout
@@ -99,38 +94,55 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      # ── Cache Electron binary BEFORE npm ci so the install step finds it ──────
-      - name: Cache Electron binary
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.ELECTRON_CACHE }}
-          key: electron-win32-x64-v28.3.3
-          restore-keys: |
-            electron-win32-x64-
-
-      - name: Cache electron-builder assets
+      - name: Cache electron-builder directory
         uses: actions/cache@v4
         with:
           path: ${{ env.ELECTRON_BUILDER_CACHE }}
-          key: electron-builder-win32-x64-v24
-          restore-keys: |
-            electron-builder-win32-x64-
+          key: electron-builder-win32-x64-${{ env.ELECTRON_VER }}
+          restore-keys: electron-builder-win32-x64-
+
+      # Pre-download the Electron zip straight into the builder cache so the
+      # Go app-builder binary finds it locally and never hits the network.
+      # Path convention: <ELECTRON_BUILDER_CACHE>/electron/<ver>/<filename>
+      - name: Pre-download Electron zip (Windows)
+        shell: pwsh
+        run: |
+          $ver  = "${{ env.ELECTRON_VER }}"
+          $file = "electron-v${ver}-win32-x64.zip"
+          $dir  = "${{ env.ELECTRON_BUILDER_CACHE }}\electron\$ver"
+          $dest = "$dir\$file"
+          if (-not (Test-Path $dest)) {
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            $url = "https://github.com/electron/electron/releases/download/v${ver}/${file}"
+            Write-Host "Downloading $url"
+            $attempt = 0
+            do {
+              $attempt++
+              try {
+                Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+                Write-Host "Downloaded on attempt $attempt"
+                break
+              } catch {
+                Write-Warning "Attempt $attempt failed: $_"
+                if ($attempt -ge 3) { throw }
+                Start-Sleep -Seconds 10
+              }
+            } while ($true)
+          } else {
+            Write-Host "Cache hit — skipping download"
+          }
 
       - name: Install dependencies
-        # --ignore-scripts skips the postinstall electron-rebuild — we run it
-        # explicitly below so it targets the correct Electron ABI headers.
         run: npm ci --ignore-scripts --workspaces false
 
       - name: Rebuild better-sqlite3 for Electron
-        # Use electron-builder's bundled @electron/rebuild (no separate dep needed)
         run: npx electron-builder install-app-deps
 
       - name: Build Vite + electron-vite bundles
         run: npm run build
 
       - name: Package Windows installer (NSIS .exe)
-        # --publish never  →  electron-builder must not try to auto-publish;
-        # the publish-release job handles all GitHub Release uploads.
+        # --publish never  →  electron-builder must not try to auto-publish
         run: npx electron-builder --win --config electron-builder.config.js --publish never
 
       - name: Upload Windows installer as artefact
@@ -159,21 +171,34 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Cache Electron binary
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.ELECTRON_CACHE }}
-          key: electron-darwin-${{ runner.arch }}-v28.3.3
-          restore-keys: |
-            electron-darwin-${{ runner.arch }}-
-
-      - name: Cache electron-builder assets
+      - name: Cache electron-builder directory
         uses: actions/cache@v4
         with:
           path: ${{ env.ELECTRON_BUILDER_CACHE }}
-          key: electron-builder-darwin-${{ runner.arch }}-v24
-          restore-keys: |
-            electron-builder-darwin-${{ runner.arch }}-
+          key: electron-builder-darwin-${{ runner.arch }}-${{ env.ELECTRON_VER }}
+          restore-keys: electron-builder-darwin-${{ runner.arch }}-
+
+      # macos-latest runner is arm64; build x64 + arm64 via electron-builder
+      - name: Pre-download Electron zips (macOS x64 + arm64)
+        run: |
+          VER="${{ env.ELECTRON_VER }}"
+          for ARCH in x64 arm64; do
+            FILE="electron-v${VER}-darwin-${ARCH}.zip"
+            DIR="${{ env.ELECTRON_BUILDER_CACHE }}/electron/${VER}"
+            DEST="${DIR}/${FILE}"
+            if [ ! -f "$DEST" ]; then
+              mkdir -p "$DIR"
+              URL="https://github.com/electron/electron/releases/download/v${VER}/${FILE}"
+              echo "Downloading $URL"
+              for i in 1 2 3; do
+                curl -fL --retry 3 --retry-delay 10 -o "$DEST" "$URL" && break
+                echo "Retry $i failed, waiting..."
+                sleep 10
+              done
+            else
+              echo "Cache hit for $FILE — skipping download"
+            fi
+          done
 
       - name: Install dependencies
         run: npm ci --ignore-scripts --workspaces false
@@ -213,21 +238,27 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Cache Electron binary
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.ELECTRON_CACHE }}
-          key: electron-linux-x64-v28.3.3
-          restore-keys: |
-            electron-linux-x64-
-
-      - name: Cache electron-builder assets
+      - name: Cache electron-builder directory
         uses: actions/cache@v4
         with:
           path: ${{ env.ELECTRON_BUILDER_CACHE }}
-          key: electron-builder-linux-x64-v24
-          restore-keys: |
-            electron-builder-linux-x64-
+          key: electron-builder-linux-x64-${{ env.ELECTRON_VER }}
+          restore-keys: electron-builder-linux-x64-
+
+      - name: Pre-download Electron zip (Linux)
+        run: |
+          VER="${{ env.ELECTRON_VER }}"
+          FILE="electron-v${VER}-linux-x64.zip"
+          DIR="${{ env.ELECTRON_BUILDER_CACHE }}/electron/${VER}"
+          DEST="${DIR}/${FILE}"
+          if [ ! -f "$DEST" ]; then
+            mkdir -p "$DIR"
+            URL="https://github.com/electron/electron/releases/download/v${VER}/${FILE}"
+            echo "Downloading $URL"
+            curl -fL --retry 3 --retry-delay 10 -o "$DEST" "$URL"
+          else
+            echo "Cache hit — skipping download"
+          fi
 
       - name: Install dependencies
         run: npm ci --ignore-scripts --workspaces false
