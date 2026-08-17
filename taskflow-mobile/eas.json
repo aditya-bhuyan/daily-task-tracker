@@ -9,20 +9,20 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk",
-        "image": "expo-51"
+        "image": "ubuntu-22.04-jdk-17-ndk-r25b"
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk",
-        "image": "expo-51"
+        "image": "ubuntu-22.04-jdk-17-ndk-r25b"
       }
     },
     "production": {
       "android": {
         "buildType": "app-bundle",
-        "image": "expo-51"
+        "image": "ubuntu-22.04-jdk-17-ndk-r25b"
       }
     }
   },
