@@ -3,25 +3,30 @@
 # This workflow publishes the TaskFlow package to the GitHub Packages npm
 # registry whenever a version tag (v*.*.*) is pushed.
 #
+# SCOPE RULE (critical!)
+# ═══════════════════════
+# GitHub Packages npm scope MUST exactly match the repository owner's
+# GitHub username — including hyphens and case.
+#
+#   Repo URL  : https://github.com/aditya-bhuyan/daily-task-tracker
+#   Owner     : aditya-bhuyan   ← hyphen, all lowercase
+#   Scope     : @aditya-bhuyan  ← must match exactly
+#
+# The old scope "@adityabhuyan" (no hyphen) caused the 403 "owner not found".
+#
 # WHAT IS PUBLISHED
 # ═════════════════
-# The package published here is the SOURCE package (React + TypeScript
-# component library / app skeleton), not the Electron installers.
-# It lets other developers install and build on top of TaskFlow:
+# The source package (React + TypeScript component library / app skeleton).
+# Install with:   npm install @aditya-bhuyan/daily-task-tracker
 #
-#   npm install @<your-github-username>/daily-task-tracker
-#
-# The Electron installers (the actual desktop app downloads) are published
-# as GitHub Release assets by npm-publish.yml.
+# Electron installers are published as GitHub Release assets by npm-publish.yml.
 #
 # PREREQUISITES
 # ═════════════
-# No extra secrets needed — GITHUB_TOKEN has write:packages permission by
-# default on any GitHub repository.
+# No extra secrets needed — GITHUB_TOKEN has write:packages by default.
 #
 # HOW TO RELEASE
 # ══════════════
-# Same as npm-publish.yml:
 #   1. Bump version in package.json
 #   2. git commit + git tag v0.2.0
 #   3. git push origin main --tags
@@ -81,23 +86,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Configure Node with GitHub Packages registry as the publish target.
-      # The registry-url is what tells npm to push to packages.github.com
-      # instead of the public npmjs.com registry.
+      # registry-url tells npm to push to packages.github.com instead of npmjs.com.
+      # scope MUST match the GitHub repo owner username exactly — with hyphens.
       - name: Setup Node.js — GitHub Packages registry
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           registry-url: "https://npm.pkg.github.com"
-          # scope must match your GitHub username / org (set in package.json name too)
-          scope: "@adityabhuyan"
+          scope: "@aditya-bhuyan"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      # Derive the version from the git tag (strips leading "v")
-      # e.g. tag v0.2.0  →  package version 0.2.0
+      # Strip the leading "v" from the tag to get a valid semver version.
+      # e.g.  tag v0.2.0  →  npm version 0.2.0
       - name: Sync package.json version with git tag
         run: |
           TAG="${{ github.ref_name }}"
@@ -105,22 +108,25 @@ jobs:
           echo "Setting version to $VERSION"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-      # The package.json `name` field must be scoped to match your GitHub account.
-      # We patch it here so the source file stays as "daily-task-tracker"
-      # while the published package is "@adityabhuyan/daily-task-tracker".
+      # Patch the package name to the scoped form required by GitHub Packages.
+      # Source file keeps "daily-task-tracker"; published as "@aditya-bhuyan/daily-task-tracker".
+      # github.repository_owner resolves to "aditya-bhuyan" automatically —
+      # no hard-coded username in the script body.
       - name: Scope package name for GitHub Packages
         run: |
+          OWNER="${{ github.repository_owner }}"
           node -e "
             const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
-            pkg.name = '@adityabhuyan/daily-task-tracker';
-            // Point the registry at GitHub Packages for this scope
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.name = '@' + process.env.OWNER + '/daily-task-tracker';
             pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
+        env:
+          OWNER: ${{ github.repository_owner }}
 
-      # Publish — the NODE_AUTH_TOKEN env var is used by npm to authenticate.
-      # GITHUB_TOKEN is automatically available; no manual secret setup needed.
+      # NODE_AUTH_TOKEN must be set for npm to authenticate against GitHub Packages.
+      # GITHUB_TOKEN is available automatically — no manual secret required.
       - name: Publish package to GitHub Packages
         run: npm publish
         env:
@@ -130,11 +136,11 @@ jobs:
         run: |
           echo "### 📦 Published to GitHub Packages" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Package:** \`@adityabhuyan/daily-task-tracker@${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** \`@${{ github.repository_owner }}/daily-task-tracker@${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Install:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @adityabhuyan/daily-task-tracker" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @${{ github.repository_owner }}/daily-task-tracker" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**View:** https://github.com/${{ github.repository }}/pkgs/npm/daily-task-tracker" >> $GITHUB_STEP_SUMMARY

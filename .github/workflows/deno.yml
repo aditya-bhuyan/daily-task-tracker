@@ -1,4 +1,4 @@
-﻿# TaskFlow CI
+# TaskFlow CI
 # Runs type-check, lint, and production build on every push and pull request.
 #
 # Author: Aditya Pratap Bhuyan https://linkedin.com/in/adityabhuyan
