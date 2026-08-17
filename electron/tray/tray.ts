@@ -3,39 +3,29 @@ import { Tray, Menu, BrowserWindow, nativeImage, app } from 'electron'
 let tray: Tray | null = null
 
 // ────────────────────────────────────────────────────────────────────────────
-// App icon — 256×256 rounded-rect, IBM blue (#3b82d4) background with white
-// checklist marks. Same image used for notifications and tray.
-// Embedded as base64 so it works in both dev and packaged builds without
-// any file-path resolution.
+// Tray icon — 256×256 RGBA PNG, white checklist marks on transparent background.
+// Transparent bg means the icon blends into both light and dark taskbars.
+// Resized to 16×16 at runtime by nativeImage (Electron best practice).
 // ────────────────────────────────────────────────────────────────────────────
-const APP_ICON_B64 =
-  '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'
+const TRAY_ICON_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAADUUlEQVR4nO3dQU4EQQwDQP7/6ea2' +
+  'UmARWuHNJEzVCyzZ6Wt/fAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE3' +
+  'OOefqDECD84KrswIhrxy+hwD+kb8cv0cAFkscv0cAFkoev0cAFnnH8XsEYIF3Hn/yEejIyVyJ' +
+  'DfHElvI6cjJXYkN8sanAzqzMk1k8xaYCO7MyT2bxFJsK7MzKPJnFU2wqsDMr82QWT7GpwM6s' +
+  'zJNZPA/bSrwiL3Pkls/DpgI7szJPZvEUmwrszMo8mcVTbCqwMyvzZBZPsanAzqzMk1k8xaYC' +
+  'O7MyT2bxfLOlvI6czJXYEE9sKa8jJ3MlNsQPFAc35/jh5hw/3Jzjh5tz/ICfgYDKsQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADA78455+oMQIPzgquzAiGvHL6HAP6Rvxy/RwAWSxy/' +
+  'RwAWSh6/RwAWecfxewRggXcef/IR6MjJXIkN8cSW8jpyMldiQ3yxqcDOrMyTWTzFpgI7szJP' +
+  'ZvEUmwrszMo8mcVTbCqwMyvzZBZPsanAzqzMk1k8D9tKvCIvc+SWz8OmAjuzMk9m8RSbCuzM' +
+  'yjyZxVNsKrAzK/NkFk+xqcDOrMyTWTzFpgI7szJPZvF8s6W8jpzMldgQT2wpryMncyU2xA8U' +
+  'Bzfn+OHmHD/cnOOHm3P8gJ+BgMqxAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDvzjnn' +
+  '6gxAg/OCq7MCIa8cvocA/pG/HL9HABZLHL9HABZKHr9HABZ5x/F7BGCBdx5/8hHoyMlciQ3x' +
+  'xJbyOnIyV2JDfLGpwM6szJNZPMWmAjuzMk9m8RSbCuzMyjyZxVNsKrAzK/NkFk+xqcDOrMyT' +
+  'WTwP20q8Ii9z5JbPw6YCO7MyT2bxFJsK7MzKPJnFU2wqsDMr82QWT7GpwM6szJNZPMWmAjuz' +
+  'MidmcXyzpbyOnMyV2BBPbCmvIydzJTbEDxQHN+f44eYcP9yc44ebc/yAn4GAyrEDAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC8yCWyyTC8qmLasAAAAAElFTkSuQmCC'
 
-const TRAY_ICON = nativeImage.createFromDataURL('data:image/png;base64,' + APP_ICON_B64)
+const TRAY_ICON = nativeImage.createFromDataURL('data:image/png;base64,' + TRAY_ICON_B64)
   .resize({ width: 16, height: 16 })
 
 function buildContextMenu(mainWindow: BrowserWindow): Electron.Menu {

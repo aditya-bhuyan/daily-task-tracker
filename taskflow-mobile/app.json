@@ -3,7 +3,7 @@
     "name": "TaskFlow",
     "slug": "taskflow-mobile",
     "owner": "aditya-bhuyan",
-    "version": "1.1.8",
+    "version": "1.1.9",
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
