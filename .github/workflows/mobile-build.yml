@@ -5,24 +5,12 @@
 #   • v*.*.* version tags → build production .aab (Play Store ready)
 #   • Manual dispatch     → choose profile (development/preview/production)
 #
-# REPO STRUCTURE NOTE
-# ═══════════════════
-# The GitHub repo (aditya-bhuyan/daily-task-tracker) contains only the
-# desktop app source. When this workflow checks out the repo, the runner
-# workspace root IS the desktop app root — there is no monorepo prefix.
-#
-# The mobile app (taskflow-mobile/) and shared package (packages/shared/)
-# exist only on the developer's local machine and are not yet pushed to
-# GitHub. The shared-typecheck job is therefore a no-op placeholder until
-# those directories are committed to the repo.
-#
-# PREREQUISITES (before first successful run)
-# ════════════════════════════════════════════
-#   1. Push taskflow-mobile/ and packages/shared/ to the repo
-#   2. Create an Expo account and run `eas init` in taskflow-mobile/
-#   3. Add EXPO_TOKEN as a GitHub repository secret
+# PREREQUISITES (one-time setup — already scaffolded, just needs secrets)
+# ════════════════════════════════════════════════════════════════════════
+#   1. Create an Expo account and run `eas init` inside taskflow-mobile/
+#      then commit the updated app.json (fills in the real EAS projectId)
+#   2. Add EXPO_TOKEN as a GitHub repository secret
 #      (Settings → Secrets → New repository secret)
-#   4. Replace REPLACE_WITH_EAS_PROJECT_ID in taskflow-mobile/app.json
 #
 # Author: Aditya Pratap Bhuyan  https://linkedin.com/in/adityabhuyan
 
@@ -52,7 +40,6 @@ env:
 jobs:
   # ════════════════════════════════════════════════════════════════════════════
   # Job 1 — Typecheck @taskflow/shared
-  # Skipped gracefully if packages/shared is not yet in the repo.
   # ════════════════════════════════════════════════════════════════════════════
   shared-typecheck:
     name: ✅ Shared package typecheck
@@ -67,24 +54,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Check if shared package exists in repo
-        id: check
-        run: |
-          if [ -f "packages/shared/package.json" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "⚠️ packages/shared not found in repo — skipping typecheck."
-            echo "Push taskflow-mobile/ and packages/shared/ to enable this step."
-          fi
-
       - name: Install shared package dependencies
-        if: steps.check.outputs.exists == 'true'
         working-directory: packages/shared
         run: npm install --ignore-scripts
 
       - name: Typecheck @taskflow/shared
-        if: steps.check.outputs.exists == 'true'
         working-directory: packages/shared
         run: npm run typecheck
 
@@ -111,19 +85,7 @@ jobs:
           eas-version: latest
           token:       ${{ secrets.EXPO_TOKEN }}
 
-      - name: Check if mobile app exists in repo
-        id: check_mobile
-        run: |
-          if [ -f "taskflow-mobile/package.json" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "⚠️ taskflow-mobile/ not found in repo — skipping EAS build."
-            echo "Push taskflow-mobile/ to the repository to enable this step."
-          fi
-
       - name: Install mobile dependencies
-        if: steps.check_mobile.outputs.exists == 'true'
         working-directory: taskflow-mobile
         run: npm install --ignore-scripts
 
@@ -137,7 +99,6 @@ jobs:
           fi
 
       - name: EAS Build — Android
-        if: steps.check_mobile.outputs.exists == 'true'
         working-directory: taskflow-mobile
         run: |
           eas build \
@@ -147,7 +108,7 @@ jobs:
             --no-wait
 
       - name: Annotate GitHub Release with EAS build link (tag pushes only)
-        if: startsWith(github.ref, 'refs/tags/v') && steps.check_mobile.outputs.exists == 'true'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
