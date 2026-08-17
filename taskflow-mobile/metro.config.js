@@ -1,8 +1,7 @@
-// Metro bundler config for NativeWind v4 + monorepo workspace resolution
+// Metro bundler config — monorepo workspace resolution
 // Author: Aditya Pratap Bhuyan
 
 const { getDefaultConfig } = require('expo/metro-config')
-const { withNativeWind } = require('nativewind/metro')
 const path = require('path')
 
 const projectRoot = __dirname
@@ -19,7 +18,4 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 
-// ── NativeWind v4 integration ─────────────────────────────────────────────────
-module.exports = withNativeWind(config, {
-  input: './src/global.css',
-})
+module.exports = config
