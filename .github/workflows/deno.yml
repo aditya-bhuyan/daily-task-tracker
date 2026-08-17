@@ -30,8 +30,9 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        # Skip postinstall (electron-rebuild) — not needed for lint/typecheck/build
-        run: npm ci --ignore-scripts
+        # Skip postinstall (electron-rebuild) — not needed for lint/typecheck/build.
+        # --workspaces false: only the desktop root package is needed here.
+        run: npm ci --ignore-scripts --workspaces false
 
       - name: Type-check
         run: npm run typecheck
