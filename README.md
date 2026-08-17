@@ -1,8 +1,11 @@
-# TaskFlow — Daily Task Tracker
+# TaskFlow — Desktop App 🖥️
 
 > **Created and maintained by [Aditya Pratap Bhuyan](https://linkedin.com/in/adityabhuyan)**
+> Part of the [TaskFlow monorepo](../README.md) — Desktop + Mobile daily task tracking suite.
 
-A cross-platform, offline-first desktop app for daily task tracking built with **Electron + React + TypeScript**, backed by a local **SQLite** database. No accounts. No cloud. No subscriptions. Your data stays on your machine.
+A cross-platform, offline-first desktop app for daily task tracking built with **Electron 28 + React 18 + TypeScript**, backed by a local **SQLite** database (`better-sqlite3`). No accounts. No cloud. No subscriptions. Your data stays on your machine.
+
+> 📱 **Looking for the mobile app?** See [`../taskflow-mobile/`](../taskflow-mobile/README.md) — the React Native / Expo companion for Android & iOS.
 
 ---
 
@@ -96,12 +99,13 @@ A cross-platform, offline-first desktop app for daily task tracking built with *
 | Layer | Technology |
 |---|---|
 | Desktop shell | Electron 28 |
-| Frontend | React 18 + TypeScript |
-| Build tool | electron-vite |
-| UI components | shadcn/ui + Tailwind CSS |
-| Database | SQLite via better-sqlite3 |
-| Recurrence scheduling | node-cron |
-| Packaging | electron-builder |
+| Frontend | React 18 + TypeScript 5 |
+| Build tool | electron-vite + Vite 5 |
+| UI components | shadcn/ui + Tailwind CSS 3 |
+| Database | SQLite via `better-sqlite3` |
+| Recurrence scheduling | `node-cron` |
+| Packaging | `electron-builder` |
+| Shared logic | `@taskflow/shared` (monorepo workspace) |
 
 ---
 
@@ -148,6 +152,30 @@ npm run dist:linux     # Linux .AppImage + .deb
 ```
 
 Output goes to `dist/`.
+
+---
+
+## 🔁 CI/CD — GitHub Actions
+
+Three workflows run automatically on every push:
+
+| Workflow | File | Triggers | What it does |
+|---|---|---|---|
+| **CI** | `deno.yml` | every push / PR to `main` | TypeScript typecheck + ESLint (zero-warnings policy) + Vite build |
+| **Release** | `npm-publish.yml` | push to `main` + `v*.*.*` tags | ci-gate → Win / Mac / Linux installers → GitHub Release on tag |
+| **Mobile Build** | `mobile-build.yml` | `v*.*.*` tags + manual dispatch | EAS Android APK / AAB via Expo |
+
+### Release command
+
+```powershell
+# 1. Bump version in package.json, then:
+git add .
+git commit -m "chore: release v0.2.0"
+git tag v0.2.0
+git push origin main --tags
+```
+
+A single push with the tag triggers all three workflows and creates a GitHub Release with installers for all three platforms attached.
 
 ---
 
@@ -277,6 +305,28 @@ Full documentation is in [`docs/wiki/`](./docs/wiki/):
 | [06 — Data & Backup](./docs/wiki/06-data-backup.md) | Storage, backup, reset, export, DB schema |
 | [07 — Developer Guide](./docs/wiki/07-developer-guide.md) | Architecture, IPC, contributing |
 | [08 — New Features Guide](./docs/wiki/08-new-features.md) | Tags, sub-tasks, Pomodoro, heatmap, weekly review, export, drag-and-drop, global hotkey |
+
+---
+
+## 🔗 Monorepo
+
+This app lives inside the **TaskFlow monorepo**:
+
+```
+Watsonx Challenge-2026/
+├── package.json                ← npm workspaces root
+├── tsconfig.base.json          ← shared TS options
+├── daily-task-tracker/         ← 🖥 This app  (DO NOT modify for mobile work)
+├── packages/shared/            ← @taskflow/shared — types + recurrence engine
+└── taskflow-mobile/            ← 📱 React Native mobile app
+```
+
+Install all workspaces at once from the repo root:
+
+```bash
+cd "Watsonx Challenge-2026"
+npm install
+```
 
 ---
 

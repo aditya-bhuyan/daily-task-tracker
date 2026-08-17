@@ -1,0 +1,123 @@
+# TaskFlow Mobile — Android APK / AAB Build via Expo EAS
+#
+# TRIGGERS
+# ════════
+#   • v*.*.* version tags → build production .aab (Play Store ready)
+#   • Manual dispatch     → choose profile (development/preview/production)
+#
+# PREREQUISITES
+# ════════════════
+#   1. Create an Expo account and run `eas init` in taskflow-mobile/
+#   2. Add EXPO_TOKEN as a GitHub repository secret
+#      (Settings → Secrets → New repository secret)
+#   3. Replace REPLACE_WITH_EAS_PROJECT_ID in taskflow-mobile/app.json
+#
+# Author: Aditya Pratap Bhuyan  https://linkedin.com/in/adityabhuyan
+
+name: Mobile — Android Build (EAS)
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS Build profile"
+        required:    true
+        default:     "preview"
+        type:        choice
+        options:
+          - development
+          - preview
+          - production
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ════════════════════════════════════════════════════════════════════════════
+  # Job 1 — Shared package typecheck
+  # ════════════════════════════════════════════════════════════════════════════
+  shared-typecheck:
+    name: ✅ Shared package typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm install --workspace=packages/shared
+
+      - name: Typecheck shared package
+        run: npm run typecheck --workspace=packages/shared
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Job 2 — EAS Build Android
+  # ════════════════════════════════════════════════════════════════════════════
+  build-android:
+    name: 🤖 Android EAS Build
+    runs-on: ubuntu-latest
+    needs: shared-typecheck
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token:       ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install mobile dependencies
+        working-directory: taskflow-mobile
+        run: npm install
+
+      - name: Determine build profile
+        id: profile
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "profile=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "profile=${{ github.event.inputs.profile }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: EAS Build — Android
+        working-directory: taskflow-mobile
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ steps.profile.outputs.profile }} \
+            --non-interactive \
+            --no-wait
+
+      - name: Comment build URL on tag release (production only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          body: |
+            ## 📱 Android Build
+
+            An **EAS Build** for the TaskFlow Mobile app has been triggered.
+            Check the build status at: https://expo.dev/accounts/[your-account]/projects/taskflow-mobile/builds
+
+            Install the preview APK from the Expo dashboard once the build completes.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
