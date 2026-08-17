@@ -39,6 +39,13 @@ permissions:
 # ── Shared env ─────────────────────────────────────────────────────────────────
 env:
   NODE_VERSION: "20"
+  ELECTRON_CACHE: ~/.cache/electron
+  ELECTRON_BUILDER_CACHE: ~/.cache/electron-builder
+  # Point the electron downloader at the official GitHub mirror so it never
+  # hits the flaky release-assets CDN that causes the wsarecv disconnections.
+  ELECTRON_MIRROR: "https://github.com/electron/electron/releases/download/"
+  # Retry failed chunk downloads up to 3 times before failing the job.
+  ELECTRON_CUSTOM_DIR: "{{ version }}"
 
 jobs:
   # ══════════════════════════════════════════════════════════════════════════════
@@ -75,6 +82,12 @@ jobs:
     name: 🪟 Build Windows installer
     runs-on: windows-latest
     needs: ci-gate              # ← only runs if lint + typecheck pass
+    # Windows electron cache lives under LOCALAPPDATA, not ~/.cache
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}\.cache\electron
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\.cache\electron-builder
+      # Keep the mirror override for Windows too (overrides the top-level env)
+      ELECTRON_MIRROR: "https://github.com/electron/electron/releases/download/"
 
     steps:
       - name: Checkout
@@ -86,12 +99,31 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      # ── Cache Electron binary BEFORE npm ci so the install step finds it ──────
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-win32-x64-v28.3.3
+          restore-keys: |
+            electron-win32-x64-
+
+      - name: Cache electron-builder assets
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: electron-builder-win32-x64-v24
+          restore-keys: |
+            electron-builder-win32-x64-
+
       - name: Install dependencies
-        # --workspaces false: the mobile workspace is not needed for the desktop build.
-        run: npm ci --workspaces false
+        # --ignore-scripts skips the postinstall electron-rebuild — we run it
+        # explicitly below so it targets the correct Electron ABI headers.
+        run: npm ci --ignore-scripts --workspaces false
 
       - name: Rebuild better-sqlite3 for Electron
-        run: npx electron-rebuild -f -w better-sqlite3
+        # Use electron-builder's bundled @electron/rebuild (no separate dep needed)
+        run: npx electron-builder install-app-deps
 
       - name: Build Vite + electron-vite bundles
         run: npm run build
@@ -127,11 +159,27 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-darwin-${{ runner.arch }}-v28.3.3
+          restore-keys: |
+            electron-darwin-${{ runner.arch }}-
+
+      - name: Cache electron-builder assets
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: electron-builder-darwin-${{ runner.arch }}-v24
+          restore-keys: |
+            electron-builder-darwin-${{ runner.arch }}-
+
       - name: Install dependencies
-        run: npm ci --workspaces false
+        run: npm ci --ignore-scripts --workspaces false
 
       - name: Rebuild better-sqlite3 for Electron
-        run: npx electron-rebuild -f -w better-sqlite3
+        run: npx electron-builder install-app-deps
 
       - name: Build Vite + electron-vite bundles
         run: npm run build
@@ -165,8 +213,24 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-linux-x64-v28.3.3
+          restore-keys: |
+            electron-linux-x64-
+
+      - name: Cache electron-builder assets
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: electron-builder-linux-x64-v24
+          restore-keys: |
+            electron-builder-linux-x64-
+
       - name: Install dependencies
-        run: npm ci --workspaces false
+        run: npm ci --ignore-scripts --workspaces false
 
       - name: Install Linux native build dependencies
         # libsecret: keychain  |  libnotify: notifications
@@ -176,7 +240,7 @@ jobs:
           sudo apt-get install -y libsecret-1-dev libnotify-bin fakeroot dpkg
 
       - name: Rebuild better-sqlite3 for Electron
-        run: npx electron-rebuild -f -w better-sqlite3
+        run: npx electron-builder install-app-deps
 
       - name: Build Vite + electron-vite bundles
         run: npm run build

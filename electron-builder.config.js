@@ -26,11 +26,17 @@ const config = {
       to: 'better-sqlite3/build/Release',
       filter: ['*.node'],
     },
+    // Bundle the tray icon so the main process can load it at runtime
+    {
+      from: 'resources/tray-icon.png',
+      to: 'tray-icon.png',
+    },
   ],
 
   // ── Windows ────────────────────────────────────────────────────────────────
   win: {
     target: [{ target: 'nsis', arch: ['x64'] }],
+    // icon.ico is generated from Generated_Icon.png (6 sizes: 16-256 px)
     icon: 'resources/icon.ico',
   },
 
@@ -44,7 +50,8 @@ const config = {
   // ── macOS ──────────────────────────────────────────────────────────────────
   mac: {
     target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
-    icon: 'resources/icon.icns',
+    // electron-builder auto-converts icon.png → .icns if no .icns is present
+    icon: 'resources/icon.png',
     category: 'public.app-category.productivity',
   },
 
