@@ -1,7 +1,43 @@
-import { Notification, BrowserWindow } from 'electron'
+import { Notification, BrowserWindow, nativeImage } from 'electron'
 import cron from 'node-cron'
 import { getAll } from '../db/tasks'
 import type { TaskWithDetails } from '../db/types'
+
+// ────────────────────────────────────────────────────────────────────────────
+// App icon — embedded as a base64 PNG so no file-path resolution is needed
+// at runtime (works in both dev and packaged builds).
+// 256×256 rounded-rect, IBM blue (#3b82d4) background, white checklist marks.
+// macOS and Linux use this as the notification icon.
+// Windows ignores the icon field and always shows the taskbar app icon instead.
+// ────────────────────────────────────────────────────────────────────────────
+const APP_ICON_B64 =
+  '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'
+
+const APP_ICON = nativeImage.createFromDataURL('data:image/png;base64,' + APP_ICON_B64.replace(/\n/g, ''))
 
 const scheduledJobs = new Map<string, cron.ScheduledTask>()
 
@@ -100,6 +136,9 @@ export function fireNotification(task: TaskWithDetails): void {
     const notification = new Notification({
       title: `📋 ${task.title}`,
       body,
+      // icon: shown next to the notification on macOS and Linux.
+      // Windows ignores this field and always uses the app's taskbar icon.
+      icon: APP_ICON,
       silent: false,
       // Actions appear as buttons in the Windows Action Center
       actions: [
@@ -108,7 +147,10 @@ export function fireNotification(task: TaskWithDetails): void {
         { type: 'button', text: 'Snooze 30 min' },
       ],
       closeButtonText: 'Dismiss',
-      // urgency is Linux-specific; timeoutType controls Windows persistence
+      // urgency: Linux-only — 'critical' renders the notification with a
+      // coloured (red/orange) accent in GNOME and KDE notification centres.
+      urgency: 'critical',
+      // timeoutType: controls Windows toast persistence
       timeoutType: 'default',
     })
 
