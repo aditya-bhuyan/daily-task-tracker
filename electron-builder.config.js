@@ -49,7 +49,9 @@ const config = {
 
   // ── macOS ──────────────────────────────────────────────────────────────────
   mac: {
-    target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
+    // macos-latest GitHub runner is arm64; build native arm64 only.
+    // Cross-compiling x64 on arm64 requires Rosetta and extra setup.
+    target: [{ target: 'dmg', arch: ['arm64'] }],
     // electron-builder auto-converts icon.png → .icns if no .icns is present
     icon: 'resources/icon.png',
     category: 'public.app-category.productivity',
