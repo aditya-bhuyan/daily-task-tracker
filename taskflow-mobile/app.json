@@ -42,6 +42,9 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "install": {
+      "exclude": ["expo-modules-autolinking"]
     }
   }
 }
